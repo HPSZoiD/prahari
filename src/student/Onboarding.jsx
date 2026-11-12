@@ -1,11 +1,8 @@
 import { useState } from 'react';
-import { AREAS, BRAND } from '../config.js';
-import { saveProfile, getSessionId } from '../lib/session.js';
+import { AREAS } from '../config.js';
+import { saveProfile, getSessionId, resetSession } from '../lib/session.js';
 
 // One-time local onboarding. No account, no server — localStorage only.
-// V1.1: we collect hostel + room (registered residence) instead of a
-// "usual area". Residence is a HINT for Command, never a grouping key —
-// the student picks the area (or not) each time they send an SOS.
 export default function Onboarding({ initial, onDone }) {
   const [name, setName] = useState(initial?.name || '');
   const [roll, setRoll] = useState(initial?.roll || '');
@@ -21,11 +18,11 @@ export default function Onboarding({ initial, onDone }) {
     if (!roll.trim()) errs.roll = 'Please enter your roll number';
     if (!hostel) errs.hostel = 'Pick your hostel';
     if (room.trim() && !/^[A-Za-z0-9\-\s\/]{1,12}$/.test(room.trim())) {
-      errs.room = 'Room number only (letters, digits, - /)';
+      errs.room = 'Room number only (letters, digits, – /)';
     }
     setErrors(errs);
     if (Object.keys(errs).length) return;
-    getSessionId(); // ensure session UUID exists
+    getSessionId();
     const profile = {
       name: name.trim(),
       roll: roll.trim(),
@@ -39,21 +36,10 @@ export default function Onboarding({ initial, onDone }) {
 
   return (
     <div className="card onboard-card">
-      <h1>{editing ? 'Edit your details' : `Hi — let's set you up`}</h1>
-      <p className="muted small" style={{ marginBottom: 14 }}>
-        {editing
-          ? 'Your residence is shared with Command as a hint when you send an SOS.'
-          : 'Thirty seconds, once. Your details stay on this phone.'}
+      <h1>{editing ? 'Edit details' : 'Your details'}</h1>
+      <p className="onboard-sub">
+        Stored on this device. Shared with Command only when you send a report.
       </p>
-
-      <div className="onboard-privacy">
-        <span aria-hidden="true">🔒</span>
-        <div>
-          <strong>No signup, no account.</strong> Your name, roll number and
-          residence are stored only on this phone and shown to campus Command
-          when you send an SOS — never to other students.
-        </div>
-      </div>
 
       <form onSubmit={submit} noValidate>
         <div className="field">
@@ -83,12 +69,11 @@ export default function Onboarding({ initial, onDone }) {
             ))}
             <option value="Day Scholar">Day Scholar (no hostel)</option>
           </select>
-          <div className="hint">Where you live — shown to Command as a residence hint.</div>
           {errors.hostel && <div className="err">{errors.hostel}</div>}
         </div>
 
         <div className="field">
-          <label htmlFor="ob-room">Room number <span className="opt-tag">optional</span></label>
+          <label htmlFor="ob-room">Room number (optional)</label>
           <input
             id="ob-room" placeholder="e.g. B-214" value={room}
             onChange={(e) => setRoom(e.target.value)} maxLength={12}
@@ -96,14 +81,20 @@ export default function Onboarding({ initial, onDone }) {
           {errors.room && <div className="err">{errors.room}</div>}
         </div>
 
-        <button type="submit" className="btn btn-lg" style={{ width: '100%' }}>
+        <button type="submit" className="btn btn-lg onboard-submit">
           {editing ? 'Save changes' : 'Continue'}
         </button>
       </form>
 
-      <p className="muted small" style={{ marginTop: 14, textAlign: 'center' }}>
-        {BRAND.drillLine}
-      </p>
+      {editing && (
+        <button
+          type="button"
+          className="btn-ghost onboard-reset"
+          onClick={() => { resetSession(); window.location.reload(); }}
+        >
+          Reset session (demo)
+        </button>
+      )}
     </div>
   );
 }

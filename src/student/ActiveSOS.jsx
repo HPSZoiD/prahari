@@ -5,8 +5,8 @@ import { getSessionId } from '../lib/session.js';
 import { ConnPill, StatusChip, fmtTime } from '../lib/ui.jsx';
 
 // Live status screen: Sent → Acknowledged → Resolved (or Cancelled).
-// Subscribes to the student's own incident; polls as a fallback so a
-// Reset Drill / dropped socket can never leave a stale screen.
+// Field Report design: paper sheet, hairline timeline, tabular timestamps.
+// Quiet "Withdraw report" text button (pre-ack only). No emoji.
 export default function ActiveSOS({ active, profile, onEnded }) {
   const [incident, setIncident] = useState(null);
   const [conn, setConn] = useState('connecting');
@@ -23,7 +23,6 @@ export default function ActiveSOS({ active, profile, onEnded }) {
       .from('incidents').select('*').eq('id', active.incident_id).limit(1);
     if (error) return;
     if (!data || data.length === 0) {
-      // Incident gone (Reset Drill) → wrap up gracefully.
       setMissing(true);
       if (!endedRef.current) { endedRef.current = true; setTimeout(() => onEnded('reset'), 900); }
       return;
@@ -32,7 +31,6 @@ export default function ActiveSOS({ active, profile, onEnded }) {
     setMissing(false);
   }, [active.incident_id, onEnded]);
 
-  // Initial fetch + realtime subscription to THIS incident.
   useEffect(() => {
     fetchIncident();
     const ch = supabase.channel(`student-sos-${active.incident_id}`)
@@ -41,12 +39,11 @@ export default function ActiveSOS({ active, profile, onEnded }) {
         (payload) => { if (payload.new) setIncident(payload.new); })
       .subscribe((status) => {
         setConn(status === 'SUBSCRIBED' ? 'live' : 'reconnecting');
-        if (status === 'SUBSCRIBED') fetchIncident(); // heal after reconnect
+        if (status === 'SUBSCRIBED') fetchIncident();
       });
     return () => { supabase.removeChannel(ch); };
   }, [active.incident_id, fetchIncident]);
 
-  // Belt-and-braces polling (catches truncate-on-reset with no realtime event).
   useEffect(() => {
     const iv = setInterval(fetchIncident, 15000);
     const onVis = () => { if (document.visibilityState === 'visible') fetchIncident(); };
@@ -54,8 +51,6 @@ export default function ActiveSOS({ active, profile, onEnded }) {
     return () => { clearInterval(iv); document.removeEventListener('visibilitychange', onVis); };
   }, [fetchIncident]);
 
-  // Terminal states → hand control back (after a short beat so the student
-  // actually sees the "Resolved" moment).
   useEffect(() => {
     if (!incident || endedRef.current) return;
     if (incident.status === 'resolved' || incident.status === 'cancelled') {
@@ -77,7 +72,7 @@ export default function ActiveSOS({ active, profile, onEnded }) {
     if (error) { setCancelBlocked(error.message); return; }
     if (data && data.ok === false) {
       if (data.reason === 'already_acknowledged') {
-        setCancelBlocked('Too late to cancel — help has already been acknowledged.');
+        setCancelBlocked('Too late to withdraw — help has already been acknowledged.');
         fetchIncident();
       } else {
         setCancelBlocked('This report is no longer active.');
@@ -89,93 +84,116 @@ export default function ActiveSOS({ active, profile, onEnded }) {
 
   const status = missing ? 'reset' : (incident?.status || 'active');
   const others = Math.max((incident?.report_count ?? 1) - 1, 0);
-  // Per spec A6: show what the student actually reported — a manual area
-  // selection, or the reserved Unspecified bucket.
   const reportedArea = active.area || incident?.area || 'Unspecified';
   const areaWasSelected = active.location_source
     ? active.location_source === 'manual'
     : reportedArea !== 'Unspecified';
 
-  const banner = {
-    active: { cls: 'st-active', big: 'SOS SENT', sub: 'Campus Command has your alert. Stay calm and safe.' },
-    acknowledged: { cls: 'st-acknowledged', big: 'HELP ACKNOWLEDGED', sub: 'Command has seen your SOS. Stay where you are if it is safe.' },
-    resolved: { cls: 'st-resolved', big: 'RESOLVED', sub: 'The incident has been closed. Thank you.' },
-    cancelled: { cls: 'st-cancelled', big: 'SOS CANCELLED', sub: 'Your report was cancelled before anyone else was affected.' },
-    reset: { cls: 'st-cancelled', big: 'DRILL ENDED', sub: 'This drill was reset from the Command board.' },
-  }[status] || { cls: 'st-active', big: 'SOS SENT', sub: '' };
+  // Incident number for display
+  const refNum = incident?.id ? `No. ${String(incident.id).slice(-4).padStart(4, '0')}` : '—';
 
-  const step = status === 'active' ? 1 : status === 'acknowledged' ? 2 : 3;
+  const step = status === 'active' ? 0 : status === 'acknowledged' ? 1 : 2;
+
+  const STEPS = [
+    { label: 'Sent',         time: active.sent_at },
+    { label: 'Acknowledged', time: incident?.ack_at },
+    { label: 'Resolved',     time: incident?.resolved_at },
+  ];
 
   return (
     <div className="active-sos">
-      <div className={`sos-banner ${banner.cls}`}>
-        <div className="big">{banner.big}</div>
-        <div className="sub">{banner.sub}</div>
-      </div>
-
-      <div className="timeline" aria-hidden="true">
-        <div className={`tl-step ${step >= 1 ? 'done' : ''}`}>
-          <div className="tl-dot" />
-          <div className="tl-label">Sent</div>
-          <div className="tl-time">{fmtTime(active.sent_at)}</div>
+      {/* Filed header */}
+      <div className="card sos-filed-head" style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '18px 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between' }}>
+          <span className="sos-seal-mark">Report filed</span>
+          <StatusChip status={status === 'reset' ? 'cancelled' : (status || 'active')} />
         </div>
-        <div className={`tl-step ${step === 2 ? 'now' : ''} ${step > 2 ? 'done' : ''}`}>
-          <div className="tl-dot" />
-          <div className="tl-label">Acknowledged</div>
-          <div className="tl-time">{fmtTime(incident?.ack_at)}</div>
-        </div>
-        <div className={`tl-step ${step > 2 ? 'done' : ''}`}>
-          <div className="tl-dot" />
-          <div className="tl-label">Resolved</div>
-          <div className="tl-time">{fmtTime(incident?.resolved_at)}</div>
+        <div className="sos-ref">{refNum}</div>
+        <div style={{ fontSize: 13, color: 'var(--ink-2)', marginTop: 2 }}>
+          {status === 'reset'
+            ? 'Drill ended from Command.'
+            : status === 'active'
+            ? 'Campus Command has your alert. Stay calm.'
+            : status === 'acknowledged'
+            ? 'Command has seen your report. Stay where you are if safe.'
+            : status === 'resolved'
+            ? 'The incident has been closed. Thank you.'
+            : 'Report withdrawn.'}
         </div>
       </div>
 
+      {/* Resolved stamp */}
+      {status === 'resolved' && (
+        <div className="resolved-stamp">Resolved</div>
+      )}
+
+      {/* Timeline */}
+      <div className="card timeline">
+        {STEPS.map((s, i) => {
+          const done = i < step;
+          const now  = i === step;
+          return (
+            <div key={s.label} className={`tl-step ${done ? 'done' : ''} ${now ? 'now' : ''}`}>
+              <div className="tl-dot" />
+              <div className="tl-body">
+                <div className="tl-label">{s.label}</div>
+                <div className="tl-time tabnum">{fmtTime(s.time)}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Info card */}
       <div className="card sos-info-card">
         <div className="sos-info-row">
           <span className="k">Emergency type</span>
-          <span className="v">{t.icon} {t.label}</span>
+          <span className="v">{t.label}</span>
         </div>
         <div className="sos-info-row">
           <span className="k">Reporting from</span>
           <span className="v">
-            {areaWasSelected ? reportedArea : 'Location not set'}
+            {areaWasSelected ? reportedArea : 'Location not specified'}
           </span>
         </div>
         <div className="sos-info-row">
           <span className="k">Status</span>
-          <span className="v"><StatusChip status={incident?.status || 'active'} /></span>
+          <span className="v">
+            <StatusChip status={incident?.status || 'active'} />
+          </span>
         </div>
       </div>
 
+      {/* Others note */}
       {others > 0 && (
         <div className="others-note">
-          You + <strong>{others} other{others > 1 ? 's' : ''}</strong> reported this from{' '}
-          {areaWasSelected ? reportedArea : 'an unspecified location'} — Command sees it as one incident.
+          You + <strong>{others} other{others > 1 ? 's' : ''}</strong> reported this
+          {areaWasSelected ? ` from ${reportedArea}` : ''} — Command sees it as one incident.
         </div>
       )}
 
+      {/* Withdraw (pre-ack only) */}
       {status === 'active' && (
         <div className="cancel-zone">
           {confirmCancel ? (
             <div className="cancel-confirm">
-              <button className="btn btn-danger" onClick={doCancel} disabled={cancelling}>
-                {cancelling ? 'Cancelling…' : 'Yes, cancel my SOS'}
+              <button className="btn btn-danger btn-sm" onClick={doCancel} disabled={cancelling}>
+                {cancelling ? 'Withdrawing…' : 'Yes, withdraw report'}
               </button>
-              <button className="btn btn-outline" onClick={() => setConfirmCancel(false)} disabled={cancelling}>
-                Keep it active
+              <button className="btn btn-outline btn-sm" onClick={() => setConfirmCancel(false)} disabled={cancelling}>
+                Keep active
               </button>
             </div>
           ) : (
-            <button className="btn btn-outline" onClick={() => setConfirmCancel(true)}>
-              Cancel SOS (only before acknowledgement)
+            <button className="btn btn-ghost btn-sm" onClick={() => setConfirmCancel(true)}>
+              Withdraw report
             </button>
           )}
           {cancelBlocked && <div className="chip chip-indigo">{cancelBlocked}</div>}
         </div>
       )}
 
-      <div className="center" style={{ marginTop: 6 }}>
+      <div className="center" style={{ marginTop: 8 }}>
         <ConnPill state={conn} />
       </div>
     </div>

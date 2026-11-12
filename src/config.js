@@ -1,8 +1,9 @@
 // Project Prahari — single source of truth for types, areas, panels, branding.
-// The student dropdown and the Command panels both read from this file.
+// Field Report design system: paper + ink, vermilion seal for SOS only.
+// No emoji. Icons are lucide-react names (resolved in JSX).
 
 export const BRAND = {
-  name: 'Project Prahari',
+  name: 'Prahari',
   tagline: 'Campus Safety Drill',
   drillLine: 'DRILL — training exercise. No real emergency services are contacted.',
 };
@@ -24,48 +25,51 @@ export const LOCATION_SOURCE_META = {
   unspecified: { label: 'Location not specified', cls: 'unspecified' },
 };
 
+// SOS types — no emoji. `lucideIcon` is the lucide-react component name.
 export const SOS_TYPES = [
   {
-    id: 'medical', label: 'Medical', icon: '🏥', accent: '#0D9488',
+    id: 'medical', label: 'Medical', lucideIcon: 'HeartPulse',
+    accent: '#C0392B',  // --medical
     hint: 'Injury, collapse, breathing trouble',
     panelHint: 'Medical response panel',
+    icon: null,
   },
   {
-    id: 'fire', label: 'Fire', icon: '🔥', accent: '#EA580C',
+    id: 'fire', label: 'Fire', lucideIcon: 'Flame',
+    accent: '#C2611F',  // --fire
     hint: 'Smoke, flames, gas smell',
     panelHint: 'Fire response panel',
+    icon: null,
   },
   {
-    id: 'safety', label: 'Safety', icon: '🛡️', accent: '#4F46E5',
+    id: 'safety', label: 'Safety', lucideIcon: 'Shield',
+    accent: '#2B4C7E',  // --safety
     hint: 'Threat, harassment, immediate danger',
     panelHint: 'Security response panel',
+    icon: null,
   },
 ];
 
 // Command board panels. Warden sees every type.
 export const PANELS = [
-  { id: 'medical', label: 'Medical', icon: '🏥', types: ['medical'], accent: '#0D9488' },
-  { id: 'fire', label: 'Fire', icon: '🔥', types: ['fire'], accent: '#EA580C' },
-  { id: 'security', label: 'Security', icon: '🛡️', types: ['safety'], accent: '#4F46E5' },
-  { id: 'warden', label: 'Warden — All Types', icon: '👔', types: ['medical', 'fire', 'safety'], accent: '#B45309' },
+  { id: 'medical',  label: 'Medical',  lucideIcon: 'HeartPulse', types: ['medical'],                   accent: '#C0392B' },
+  { id: 'fire',     label: 'Fire',     lucideIcon: 'Flame',      types: ['fire'],                      accent: '#C2611F' },
+  { id: 'security', label: 'Security', lucideIcon: 'Shield',     types: ['safety'],                    accent: '#2B4C7E' },
+  { id: 'warden',   label: 'Warden — all types', lucideIcon: 'ScrollText', types: ['medical', 'fire', 'safety'], accent: '#4B4B48' },
 ];
 
 // Hold-to-trigger duration for the student SOS button.
 export const HOLD_MS = 2000;
 
-// (V1.1) the siren is synthesized with the Web Audio API — 650/950 Hz yelp.
-// No audio file is shipped; see src/command/Siren.js.
-
 // Used ONLY by Command's "Simulate Burst" to jitter fake coordinates.
-// Replace with your real campus center for a nicer demo.
 export const CAMPUS_CENTER = { lat: 28.6139, lng: 77.2090 };
 
 export const STATUS_META = {
-  active: { label: 'ACTIVE', tone: 'red' },
-  acknowledged: { label: 'ACKNOWLEDGED', tone: 'indigo' },
-  resolved: { label: 'RESOLVED', tone: 'green' },
-  cancelled: { label: 'CANCELLED', tone: 'slate' },
+  active:       { label: 'Active',        tone: 'red'    },
+  acknowledged: { label: 'Acknowledged',  tone: 'amber'  },
+  resolved:     { label: 'Resolved',      tone: 'green'  },
+  cancelled:    { label: 'Cancelled',     tone: 'slate'  },
 };
 
-export const typeById = (id) => SOS_TYPES.find((t) => t.id === id) || { id, label: id, icon: '❓', accent: '#64748B' };
+export const typeById = (id) => SOS_TYPES.find((t) => t.id === id) || { id, label: id, lucideIcon: 'AlertCircle', accent: '#857F75' };
 export const mapsUrl = (lat, lng) => `https://maps.google.com/?q=${lat},${lng}`;

@@ -1,16 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-// Hold-to-trigger button with an SVG progress ring.
-// Pointer events (works for touch + mouse + pen); keyboard via Space/Enter.
+// Hold-to-trigger button with SVG progress ring.
+// 168px circle, --seal fill, 3px ring in white/35 that fills clockwise over 2s.
+// No emoji, no animation except the ring and scale(.97) on press.
 export default function HoldButton({
   holdMs = 2000,
   disabled = false,
   armed = true,
   onComplete,
-  label = 'HOLD TO SEND SOS',
+  label = 'HOLD',
+  sublabel = '2 seconds',
 }) {
-  const R = 104;            // ring radius (svg viewBox 232)
+  const SIZE = 184;
+  const STROKE = 3;
+  // Ring radius: half size minus half stroke, with a small inset gap
+  const R = (SIZE / 2) - STROKE - 4;
   const CIRC = 2 * Math.PI * R;
+  const cx = SIZE / 2;
+
   const ringRef = useRef(null);
   const rafRef = useRef(null);
   const startRef = useRef(0);
@@ -36,6 +43,8 @@ export default function HoldButton({
     if (disabled || rafRef.current || doneRef.current) return;
     setState('holding');
     startRef.current = performance.now();
+    // Vibrate on press if not silent
+    try { navigator.vibrate?.(12); } catch { /* ok */ }
     const tick = () => {
       const p = Math.min((performance.now() - startRef.current) / holdMs, 1);
       setProgress(p);
@@ -43,6 +52,7 @@ export default function HoldButton({
         rafRef.current = null;
         doneRef.current = true;
         setState('fired');
+        try { navigator.vibrate?.(24); } catch { /* ok */ }
         onComplete();
         return;
       }
@@ -58,12 +68,16 @@ export default function HoldButton({
 
   useEffect(() => () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); }, []);
 
+  const displayLabel = state === 'fired' ? 'Sent' : label;
+  const displaySub   = state === 'holding' ? 'Keep holding…' : (sublabel || '2 seconds');
+
   return (
     <button
       type="button"
-      className={`hold-btn ${armed && !disabled ? 'armed' : ''} ${state === 'fired' ? 'fired' : ''}`}
+      className={`hold-btn ${armed && !disabled ? 'armed' : ''} ${state === 'holding' ? 'holding' : ''} ${state === 'fired' ? 'fired' : ''}`}
       disabled={disabled}
-      aria-label={label}
+      aria-label={`Hold to send ${displayLabel} SOS`}
+      style={{ width: SIZE, height: SIZE }}
       onPointerDown={(e) => { e.preventDefault(); try { e.target.setPointerCapture(e.pointerId); } catch { /* ok */ } begin(); }}
       onPointerUp={stop}
       onPointerCancel={stop}
@@ -74,23 +88,36 @@ export default function HoldButton({
       onKeyUp={(e) => { if (e.key === ' ' || e.key === 'Enter') stop(); }}
       onContextMenu={(e) => e.preventDefault()}
     >
-      <svg className="hb-svg" viewBox="0 0 232 232" aria-hidden="true">
-        <circle className="hb-ring-bg" cx="116" cy="116" r={R} />
+      {/* SVG ring — rotated so progress starts at 12 o'clock */}
+      <svg
+        className="hb-svg"
+        viewBox={`0 0 ${SIZE} ${SIZE}`}
+        aria-hidden="true"
+        style={{ transform: 'rotate(-90deg)' }}
+      >
+        {/* Background circle (the seal fill) */}
+        <circle
+          className="hb-ring-bg"
+          cx={cx} cy={cx} r={cx - 1}
+        />
+        {/* Progress arc */}
         <circle
           ref={ringRef}
           className="hb-ring-fill"
-          cx="116" cy="116" r={R}
+          cx={cx} cy={cx} r={R}
           strokeDasharray={CIRC}
           strokeDashoffset={CIRC}
+          strokeWidth={STROKE}
+          fill="none"
+          stroke="rgba(255,255,255,.45)"
+          strokeLinecap="round"
         />
       </svg>
+
+      {/* Inner core */}
       <span className="hb-core">
-        <span className="hb-title">
-          {state === 'fired' ? 'SENT' : label}
-        </span>
-        <span className="hb-sub">
-          {state === 'holding' ? 'KEEP HOLDING…' : 'HOLD 2 SECONDS'}
-        </span>
+        <span className="hb-title">{displayLabel}</span>
+        {!disabled && <span className="hb-sub">{displaySub}</span>}
       </span>
     </button>
   );

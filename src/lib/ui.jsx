@@ -1,5 +1,5 @@
-// Small shared UI primitives used by both apps (toast, chips, pills, timers,
-// hold-to-confirm action).
+// Small shared UI primitives used by both apps.
+// Field Report design system: no emoji, tabular numerals.
 
 import { useEffect, useRef, useState } from 'react';
 import { STATUS_META } from '../config.js';
@@ -36,12 +36,26 @@ export function StatusChip({ status }) {
 // ── connection pill ──────────────────────────────────────────────────────────
 export function ConnPill({ state }) {
   const map = {
-    connecting: { label: 'Connecting…', cls: 'conn-amber' },
-    live: { label: '● Live', cls: 'conn-green' },
-    reconnecting: { label: 'Reconnecting…', cls: 'conn-amber' },
+    connecting:   { label: 'Connecting', cls: 'conn-amber' },
+    live:         { label: 'Live',       cls: 'conn-green' },
+    reconnecting: { label: 'Reconnecting', cls: 'conn-amber' },
   };
   const m = map[state] || map.connecting;
-  return <span className={`conn-pill ${m.cls}`}>{m.label}</span>;
+  return (
+    <span className={`conn-pill ${m.cls}`}>
+      <span
+        style={{
+          display: 'inline-block',
+          width: 6, height: 6,
+          borderRadius: '50%',
+          background: 'currentColor',
+          flexShrink: 0,
+        }}
+        aria-hidden="true"
+      />
+      {m.label}
+    </span>
+  );
 }
 
 // ── ticking clock for elapsed timers ─────────────────────────────────────────
@@ -71,7 +85,7 @@ export function fmtTime(iso) {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
-// ── hold-to-confirm action (used by Reset Drill) ─────────────────────────────
+// ── hold-to-confirm action (used by Reset Drill) ──────────────────────────────
 export function HoldAction({ label, holdMs = 1200, onConfirm, className = '', disabled = false }) {
   const [progress, setProgress] = useState(0);
   const raf = useRef(null);

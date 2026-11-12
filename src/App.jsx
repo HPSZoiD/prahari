@@ -7,20 +7,17 @@ function SetupScreen() {
   return (
     <div className="setup-wrap">
       <div className="card setup-card">
-        <div className="setup-shield" aria-hidden="true">🛡️</div>
         <h1>{BRAND.name}</h1>
         <p className="muted">{BRAND.tagline}</p>
-        <h2>One step left: connect Supabase</h2>
-        <ol className="setup-steps">
-          <li>Create a free project at <strong>supabase.com</strong>.</li>
-          <li>SQL Editor → run <code>supabase/schema.sql</code>.</li>
-          <li>Copy the project URL + <em>anon</em> key into <code>.env</code>
-            (see <code>.env.example</code>).</li>
-          <li>Restart <code>npm run dev</code>.</li>
-        </ol>
+        <h2>Connect Supabase</h2>
         <p className="muted small">
-          No Supabase account yet? Run <code>npm run dev:demo</code> for the
-          in-browser mock backend (rehearsal only).
+          Add <code>VITE_SUPABASE_URL</code> and{' '}
+          <code>VITE_SUPABASE_ANON_KEY</code> to <code>.env</code>, then
+          restart the dev server.
+        </p>
+        <p className="muted small">
+          No project yet? Run <code>npm run dev:demo</code> for the in-browser
+          mock backend.
         </p>
       </div>
     </div>

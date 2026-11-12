@@ -1,29 +1,32 @@
 import { useEffect, useRef, useState } from 'react';
+import { HeartPulse, Flame, Shield, MapPin, ChevronRight } from 'lucide-react';
 import { AREAS, HOLD_MS, SOS_TYPES, UNSPECIFIED_AREA } from '../config.js';
 import { supabase } from '../lib/supabase.js';
-import { getSessionId, resetSession } from '../lib/session.js';
+import { getSessionId } from '../lib/session.js';
 import { startWarmWatch, cachedFix, refineLocation, getLocationStatus } from '../lib/location.js';
 import HoldButton from './HoldButton.jsx';
 
-// Area selection lives in memory ONLY (never localStorage): it auto-clears
-// 10 minutes after the last change and on every page reload, so a stale
-// "Canteen" can never leak into tomorrow's report.
+// Icon map for SOS types (lucide, no emoji)
+const TYPE_ICONS = {
+  medical: HeartPulse,
+  fire: Flame,
+  safety: Shield,
+};
+
+// Area TTL: clear selection 10 min after last set, on every reload.
 const AREA_TTL_MS = 10 * 60 * 1000;
 
-// Student dashboard: type picker → OPTIONAL area selector → HOLD TO SOS.
-// V1.1: no silent toggle — the phone is always silent on send. Location is
-// cached-first and never blocks the SOS; the area selector never blocks the
-// hold button either.
 export default function Dashboard({ profile, onFired, onEdit }) {
   const [type, setType] = useState(null);
-  const [area, setArea] = useState(null);          // null = not selected
+  const [area, setArea] = useState(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
   const [fixNote, setFixNote] = useState(null);
+  const [areaOpen, setAreaOpen] = useState(false);
   const firedRef = useRef(false);
   const areaTimerRef = useRef(null);
 
-  // ── Area TTL: clear the selection 10 min after it was last set ────────────
+  // ── Area TTL ───────────────────────────────────────────────────────────────
   useEffect(() => {
     if (areaTimerRef.current) clearTimeout(areaTimerRef.current);
     if (area !== null) {
@@ -32,16 +35,16 @@ export default function Dashboard({ profile, onFired, onEdit }) {
     return () => { if (areaTimerRef.current) clearTimeout(areaTimerRef.current); };
   }, [area]);
 
-  // Warm the GPS cache silently while the student looks at this screen.
+  // Warm the GPS cache silently.
   useEffect(() => {
     startWarmWatch();
     const t = setInterval(() => {
       const f = cachedFix();
       const st = getLocationStatus();
       setFixNote(
-        f ? `Live location ready — ±${Math.round(f.accuracy_m)}m, sent with your SOS`
-          : st === 'denied' ? 'Location permission off — SOS still works (area + residence are sent)'
-          : 'Getting a live location fix in the background…',
+        f ? 'GPS ready'
+          : st === 'denied' ? 'GPS off'
+          : 'GPS…',
       );
     }, 1500);
     return () => clearInterval(t);
@@ -57,19 +60,17 @@ export default function Dashboard({ profile, onFired, onEdit }) {
     const fix = cachedFix();
 
     try {
-      // area === null → 'Unspecified' bucket server-side (raise_sos handles
-      // the mapping; we send null, never a guess from hostel or GPS).
       const { data, error: rpcError } = await supabase.rpc('raise_sos', {
         p_session: session,
         p_name: profile.name,
         p_roll: profile.roll,
-        p_phone: null,           // V1 does not collect phone numbers
-        p_area: area,            // null → 'Unspecified'; a real selection → manual
+        p_phone: null,
+        p_area: area,
         p_type: type.id,
         p_lat: fix?.lat ?? null,
         p_lng: fix?.lng ?? null,
         p_acc: fix?.accuracy_m ?? null,
-        p_silent: true,          // V1.1: silent by default, no UI toggle
+        p_silent: true,
         p_hostel: profile.hostel ?? null,
         p_room: profile.room || null,
       });
@@ -83,7 +84,7 @@ export default function Dashboard({ profile, onFired, onEdit }) {
         sent_at: new Date().toISOString(),
       });
 
-      // Refine location AFTER the SOS is already out (never blocking).
+      // Refine location after SOS is out — never blocking.
       if (data.event_id) {
         refineLocation().then((better) => {
           if (!better) return;
@@ -94,12 +95,12 @@ export default function Dashboard({ profile, onFired, onEdit }) {
             p_lng: better.lng,
             p_acc: better.accuracy_m,
           }).then(({ data: ok }) => {
-            if (ok?.ok) setFixNote(`Location refined — ±${Math.round(better.accuracy_m)}m`);
+            if (ok?.ok) setFixNote('GPS refined');
           }).catch(() => {});
         });
       }
     } catch (err) {
-      setError(err.message || 'Could not send the SOS. Check your connection and try again.');
+      setError(err.message || 'Could not send the report. Check your connection and try again.');
       setSending(false);
       firedRef.current = false;
     }
@@ -109,76 +110,98 @@ export default function Dashboard({ profile, onFired, onEdit }) {
 
   return (
     <div>
+      {/* Profile pill */}
       <div className="profile-chip">
-        <div className="avatar" aria-hidden="true">
-          {profile.name ? profile.name.slice(0, 1).toUpperCase() : '?'}
-        </div>
         <div className="who">
           <div className="name">{profile.name}</div>
           <div className="meta">
-            {profile.roll} · {profile.hostel}{profile.room ? ` · Room ${profile.room}` : ''}
+            {profile.hostel}{profile.room ? ` · ${profile.room}` : ''}
           </div>
         </div>
         <div className="actions">
-          <button className="btn btn-ghost btn-sm" onClick={onEdit}>Edit</button>
+          <button className="btn-ghost" onClick={onEdit}>Edit</button>
         </div>
       </div>
 
-      <div className="section-label">1 · What is happening?</div>
-      <div className="type-grid" role="radiogroup" aria-label="SOS type">
-        {SOS_TYPES.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="radio"
-            aria-checked={type?.id === t.id}
-            className={`type-card ${type?.id === t.id ? 'selected' : ''}`}
-            style={{ '--tc': t.accent, borderColor: type?.id === t.id ? t.accent : undefined }}
-            onClick={() => setType(t)}
-          >
-            <span className="t-check" aria-hidden="true">✓</span>
-            <span className="t-icon" aria-hidden="true">{t.icon}</span>
-            <span className="t-label">{t.label}</span>
-            <span className="t-hint">{t.hint}</span>
-          </button>
-        ))}
+      {/* Type selector */}
+      <div className="section-label">What is happening?</div>
+      <div className="type-grid" role="radiogroup" aria-label="Emergency type">
+        {SOS_TYPES.map((t) => {
+          const Icon = TYPE_ICONS[t.id];
+          const sel = type?.id === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              role="radio"
+              aria-checked={sel}
+              className={`type-card ${sel ? 'selected' : ''}`}
+              style={{ '--tc': t.accent }}
+              onClick={() => setType(t)}
+            >
+              <span className="t-icon" aria-hidden="true">
+                <Icon size={20} strokeWidth={1.5} />
+              </span>
+              <span className="t-label">{t.label}</span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* Optional area — searchable dropdown from the shared AREAS config.
-          Free text is impossible (no <option> from user input), so grouping
-          can never fragment. Never gates the hold button. */}
-      <div className="section-label">2 · Where are you? <span className="opt-tag">optional</span></div>
-      <div className="area-picker">
-        <span className="ap-pin" aria-hidden="true">📍</span>
-        <input
-          className="ap-input"
-          list="area-options"
-          placeholder="Pick your current area…"
-          value={area ?? ''}
-          onChange={(e) => {
-            const v = e.target.value;
-            setArea(AREAS.includes(v) ? v : (v === '' ? null : v));
-          }}
-          autoComplete="off"
-          aria-label="Current area (optional)"
-        />
-        <datalist id="area-options">
-          {AREAS.map((a) => <option key={a} value={a} />)}
-        </datalist>
-        {area !== null && (
-          <button
-            type="button" className="ap-clear" aria-label="Clear area"
-            onClick={() => setArea(null)}
-          >✕</button>
-        )}
-      </div>
-      <div className="area-note">
-        {area !== null
-          ? <>Sending from <strong>{area}</strong> · clears in 10 min</>
-          : <>No area picked — the alert still sends instantly under <strong>{UNSPECIFIED_AREA}</strong>, and Command will confirm the location with reporters.</>}
-      </div>
+      {/* Area row */}
+      <div className="section-label">Where are you? (optional)</div>
 
-      <div className="section-label">3 · Send the alert</div>
+      {areaOpen ? (
+        <>
+          <div className="area-picker">
+            <MapPin size={15} strokeWidth={1.5} style={{ color: 'var(--ink-2)', flexShrink: 0 }} aria-hidden="true" />
+            <input
+              className="ap-input"
+              list="area-options"
+              placeholder="Pick your current area…"
+              value={area ?? ''}
+              onChange={(e) => {
+                const v = e.target.value;
+                setArea(AREAS.includes(v) ? v : (v === '' ? null : v));
+              }}
+              autoComplete="off"
+              autoFocus
+              aria-label="Current area (optional)"
+            />
+            <datalist id="area-options">
+              {AREAS.map((a) => <option key={a} value={a} />)}
+            </datalist>
+            {area !== null && (
+              <button
+                type="button" className="ap-clear" aria-label="Clear area"
+                onClick={() => setArea(null)}
+              >✕</button>
+            )}
+          </div>
+          <div className="area-note">
+            {area !== null
+              ? <>Reporting from <strong>{area}</strong> · clears in 10 min</>
+              : <>No area picked — alert sends under <strong>{UNSPECIFIED_AREA}</strong>. Command will confirm with reporters.</>}
+          </div>
+        </>
+      ) : (
+        <div
+          className="dash-area-row"
+          role="button"
+          tabIndex={0}
+          aria-label="Set reporting area"
+          onClick={() => setAreaOpen(true)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setAreaOpen(true); }}
+        >
+          <span className="area-label">Reporting from</span>
+          <span className={`gps-chip ${fixNote === 'GPS off' ? 'off' : ''}`}>{fixNote || 'GPS…'}</span>
+          <span className={`area-value ${area ? '' : 'unset'}`}>{area || 'Not set'}</span>
+          <ChevronRight size={15} strokeWidth={1.5} style={{ color: 'var(--ink-2)', flexShrink: 0 }} aria-hidden="true" />
+        </div>
+      )}
+
+      {/* Send */}
+      <div className="section-label">Send alert</div>
 
       <div className="hold-zone">
         <HoldButton
@@ -186,20 +209,14 @@ export default function Dashboard({ profile, onFired, onEdit }) {
           disabled={!selected || sending}
           armed={Boolean(selected) && !sending}
           onComplete={fire}
-          label={selected ? `HOLD FOR ${selected.label.toUpperCase()} SOS` : 'PICK A TYPE FIRST'}
+          label={selected ? 'HOLD' : 'SELECT TYPE'}
+          sublabel={selected ? '2 seconds' : ''}
         />
         <div className="hold-hint">
-          {selected
-            ? <>Hold for 2 seconds — your SOS goes to Command{' '}
-               {area ? <>for <strong>{area}</strong></> : <>with <strong>live location + residence</strong></>}
-               </>
-            : <>Select Medical, Fire or Safety above to arm the button</>}
-        </div>
-        <div className="location-note" aria-live="polite">
-          <span aria-hidden="true">📍</span> {fixNote || '…'}
+          {selected ? 'Hold to send' : 'Select a type to arm'}
         </div>
         {error && (
-          <div className="chip chip-red" role="alert" style={{ alignSelf: 'center' }}>
+          <div className="chip chip-red" role="alert">
             {error}
           </div>
         )}
@@ -207,20 +224,10 @@ export default function Dashboard({ profile, onFired, onEdit }) {
 
       {sending && (
         <div className="sending-overlay" role="status">
-          <span className="spinner" style={{ width: 34, height: 34, borderWidth: 4 }} />
-          Sending your SOS…
+          <span className="spinner" style={{ width: 32, height: 32, borderWidth: 3 }} />
+          Sending report…
         </div>
       )}
-
-      <div className="center" style={{ marginTop: 18 }}>
-        <button
-          className="btn btn-ghost btn-sm"
-          onClick={() => { resetSession(); }}
-          title="Fresh session id — useful when testing repeatedly"
-        >
-          Reset session (demo reuse)
-        </button>
-      </div>
     </div>
   );
 }

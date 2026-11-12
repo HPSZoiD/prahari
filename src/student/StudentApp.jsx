@@ -15,7 +15,6 @@ export default function StudentApp() {
 
   // V1 → V1.1 migration: old profiles had `area` (usual area). The selector
   // is now per-SOS, so drop the stale field and ask for hostel on next edit.
-  // (Profiles straight from V1.1 onboarding always have hostel/room.)
   useEffect(() => {
     if (profile && profile.hostel == null) {
       setEditing(true);
@@ -27,7 +26,7 @@ export default function StudentApp() {
   const handleOnboard = (p) => {
     setProfile(p);
     setEditing(false);
-    push('Profile saved on this phone. Ready when you are.');
+    push('Profile saved on this device. Ready when you are.');
   };
 
   const handleFired = (result, meta) => {
@@ -44,8 +43,8 @@ export default function StudentApp() {
 
   const handleEnded = (status) => {
     setActive(null);
-    if (status === 'resolved') push('Incident resolved — drill complete. Thank you!', 'success');
-    else if (status === 'cancelled') push('SOS cancelled.');
+    if (status === 'resolved') push('Incident resolved. Thank you.', 'success');
+    else if (status === 'cancelled') push('Report withdrawn.');
     else push('Drill ended.');
   };
 
@@ -53,30 +52,27 @@ export default function StudentApp() {
     <div className="student-app">
       <header className="student-header">
         <div className="student-brand">
-          <span className="brand-icon" aria-hidden="true">🛡️</span>
           <div>
-            <div className="brand-name">{BRAND.name}</div>
-            <div className="brand-sub">{BRAND.tagline}</div>
+            <div className="brand-wordmark">{BRAND.name}</div>
+            <div className="brand-sub-label">Student</div>
           </div>
         </div>
-        <span className="drill-chip">⚠ DRILL</span>
       </header>
 
-      {!profile || editing ? (
-        <Onboarding initial={profile} onDone={handleOnboard} />
-      ) : active ? (
-        <ActiveSOS active={active} profile={profile} onEnded={handleEnded} />
-      ) : (
-        <Dashboard
-          profile={profile}
-          onFired={handleFired}
-          onEdit={() => setEditing(true)}
-        />
-      )}
+      <main className="student-main">
+        {!profile || editing ? (
+          <Onboarding initial={profile} onDone={handleOnboard} />
+        ) : active ? (
+          <ActiveSOS active={active} profile={profile} onEnded={handleEnded} />
+        ) : (
+          <Dashboard
+            profile={profile}
+            onFired={handleFired}
+            onEdit={() => setEditing(true)}
+          />
+        )}
+      </main>
 
-      <div className="student-footer-note">
-        {BRAND.drillLine}
-      </div>
       <Toasts toasts={toasts} />
     </div>
   );

@@ -16,7 +16,7 @@ const NAMES = [
 ];
 const HOSTELS = ['Hostel 1', 'Hostel 2', 'Hostel 1', 'Hostel 2', 'Day Scholar'];
 
-export default function DrillControls({ onAfterReset, busy, push }) {
+export default function DrillControls({ onAfterReset, busy, push, inMenu = false, onMenuAction }) {
   const [burstOpen, setBurstOpen] = useState(false);
   const [burstCount, setBurstCount] = useState(12);
   const [burstProgress, setBurstProgress] = useState(null); // {done,total}
@@ -74,14 +74,20 @@ export default function DrillControls({ onAfterReset, busy, push }) {
     push && push('Drill reset — all tables truncated. Clean board.', 'success');
   };
 
+  const btnCls = inMenu ? 'menu-item' : 'btn btn-outline btn-sm';
+
   return (
     <>
-      <button className="btn btn-outline btn-sm" onClick={() => setBurstOpen(true)} disabled={busy || Boolean(burstProgress)}>
-        ⚡ Simulate Burst
+      <button
+        className={btnCls}
+        onClick={() => { onMenuAction?.(); setBurstOpen(true); }}
+        disabled={busy || Boolean(burstProgress)}
+      >
+        Simulate burst
       </button>
       <HoldAction
-        label="⟲ Reset Drill (hold)"
-        className="btn-sm"
+        label="Reset drill (hold)"
+        className={inMenu ? 'menu-item hold-menu' : 'btn-sm'}
         disabled={busy || resetBusy}
         onConfirm={runReset}
       />
@@ -89,7 +95,7 @@ export default function DrillControls({ onAfterReset, busy, push }) {
       {burstOpen && (
         <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setBurstOpen(false); }}>
           <div className="modal" role="dialog" aria-label="Simulate burst">
-            <h3>⚡ Simulate Burst</h3>
+            <h3>Simulate burst</h3>
             <p className="muted small">
               Injects fake student reports through the <strong>real</strong>{' '}
               <code>raise_sos</code> RPC — exactly the path a phone takes.

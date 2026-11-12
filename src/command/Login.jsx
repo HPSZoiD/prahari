@@ -27,16 +27,13 @@ export default function Login({ onSignedIn }) {
     <div className="login-wrap">
       <div className="card login-card">
         <div className="login-brand">
-          <span className="brand-icon" aria-hidden="true">🛡️</span>
-          <div>
-            <h1>{BRAND.name}</h1>
-            <div className="muted small" style={{ fontWeight: 700 }}>PRAHARI COMMAND · DRILL</div>
-          </div>
+          <div className="cmd-wordmark">{BRAND.name}</div>
+          <div className="login-sub">Command access</div>
         </div>
 
         <form onSubmit={submit} noValidate>
           <div className="field">
-            <label htmlFor="cmd-email">Command email</label>
+            <label htmlFor="cmd-email">Email</label>
             <input
               id="cmd-email" type="email" autoComplete="username"
               placeholder="command@yourcollege.edu" value={email}
@@ -51,18 +48,14 @@ export default function Login({ onSignedIn }) {
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
-          {error && <div className="chip chip-red" style={{ marginBottom: 12 }}>{error}</div>}
+          {error && <div className="chip chip-red" style={{ marginBottom: 14 }}>{error}</div>}
           <button type="submit" className="btn btn-lg" style={{ width: '100%' }} disabled={busy}>
             {busy ? 'Signing in…' : 'Open Command Board'}
           </button>
         </form>
 
-        <div className="login-note">
-          Single operator account — student signups are disabled by design.
-          Students never log in; they just open the app link.
-        </div>
-        <p className="muted small" style={{ marginTop: 12, textAlign: 'center' }}>
-          {BRAND.drillLine}
+        <p className="login-note">
+          Operator account only. Students never sign in.
         </p>
       </div>
     </div>
