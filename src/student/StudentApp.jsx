@@ -5,6 +5,7 @@ import { useToasts, Toasts } from '../lib/ui.jsx';
 import Onboarding from './Onboarding.jsx';
 import Dashboard from './Dashboard.jsx';
 import ActiveSOS from './ActiveSOS.jsx';
+import StudentShell from './StudentShell.jsx';
 
 // Student entry point. Local identity only — no signup, ever.
 export default function StudentApp() {
@@ -48,32 +49,44 @@ export default function StudentApp() {
     else push('Drill ended.');
   };
 
+  const header = (
+    <header className="pr-brand pr-enter" style={{ '--i': 0 }}>
+      <h1 className="pr-brand__title">{BRAND.name.toUpperCase()}</h1>
+      <p className="pr-brand__role">Student</p>
+    </header>
+  );
+
+  // Onboarding stays outside the shell so the bottom nav does not appear
+  // before a profile exists.
+  if (!profile || editing) {
+    return (
+      <>
+        <Onboarding initial={profile} onDone={handleOnboard} />
+        <Toasts toasts={toasts} />
+      </>
+    );
+  }
+
   return (
-    <div className="student-app">
-      <header className="student-header">
-        <div className="student-brand">
-          <div>
-            <div className="brand-wordmark">{BRAND.name}</div>
-            <div className="brand-sub-label">Student</div>
+    <>
+      <StudentShell
+        alertActive={Boolean(active)}
+        sos={
+          <div className="pr-page">
+            {header}
+            {active ? (
+              <ActiveSOS active={active} profile={profile} onEnded={handleEnded} />
+            ) : (
+              <Dashboard
+                profile={profile}
+                onFired={handleFired}
+                onEdit={() => setEditing(true)}
+              />
+            )}
           </div>
-        </div>
-      </header>
-
-      <main className="student-main">
-        {!profile || editing ? (
-          <Onboarding initial={profile} onDone={handleOnboard} />
-        ) : active ? (
-          <ActiveSOS active={active} profile={profile} onEnded={handleEnded} />
-        ) : (
-          <Dashboard
-            profile={profile}
-            onFired={handleFired}
-            onEdit={() => setEditing(true)}
-          />
-        )}
-      </main>
-
-      <Toasts toasts={toasts} />
-    </div>
+        }
+      />
+      <Toasts toasts={toasts} className="pr-toasts" />
+    </>
   );
 }

@@ -16,10 +16,10 @@ export function useToasts() {
   return { toasts, push };
 }
 
-export function Toasts({ toasts }) {
+export function Toasts({ toasts, className = '' }) {
   if (!toasts.length) return null;
   return (
-    <div className="toasts" role="status" aria-live="polite">
+    <div className={`toasts ${className}`.trim()} role="status" aria-live="polite">
       {toasts.map((t) => (
         <div key={t.id} className={`toast toast-${t.tone}`}>{t.text}</div>
       ))}

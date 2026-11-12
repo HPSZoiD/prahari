@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AREAS } from '../config.js';
+import { AREAS, BRAND } from '../config.js';
 import { saveProfile, getSessionId, resetSession } from '../lib/session.js';
 
 // One-time local onboarding. No account, no server — localStorage only.
@@ -35,53 +35,58 @@ export default function Onboarding({ initial, onDone }) {
   };
 
   return (
-    <div className="card onboard-card">
-      <h1>{editing ? 'Edit details' : 'Your details'}</h1>
-      <p className="onboard-sub">
-        Stored on this device. Shared with Command only when you send a report.
-      </p>
+    <main className="pr-page" style={{ justifyContent: 'center' }}>
+      <header className="pr-brand pr-enter" style={{ '--i': 0 }}>
+        <h1 className="pr-brand__title">{BRAND.name.toUpperCase()}</h1>
+        <p className="pr-brand__role">Student</p>
+      </header>
 
-      <form onSubmit={submit} noValidate>
-        <div className="field">
-          <label htmlFor="ob-name">Full name</label>
+      <form className="pr-card pr-form-card pr-enter" style={{ '--i': 1 }} onSubmit={submit} noValidate>
+        <h2 className="t-title pr-form-title">{editing ? 'Edit details' : 'Your details'}</h2>
+        <p className="t-sub" style={{ margin: 0 }}>
+          Stored on this device. Shared with Command only when you send a report.
+        </p>
+
+        <label className="pr-field" htmlFor="ob-name">
+          <span className="pr-label">Full name</span>
           <input
-            id="ob-name" autoComplete="name" placeholder="e.g. Aarav Sharma"
+            id="ob-name" className="pr-input" autoComplete="name" placeholder="e.g. Aarav Sharma"
             value={name} onChange={(e) => setName(e.target.value)}
           />
-          {errors.name && <div className="err">{errors.name}</div>}
-        </div>
+        </label>
+        {errors.name && <div className="pr-err">{errors.name}</div>}
 
-        <div className="field">
-          <label htmlFor="ob-roll">Roll number</label>
+        <label className="pr-field" htmlFor="ob-roll">
+          <span className="pr-label">Roll number</span>
           <input
-            id="ob-roll" placeholder="e.g. CS2K23-104" value={roll}
+            id="ob-roll" className="pr-input" placeholder="e.g. CS2K23-104" value={roll}
             onChange={(e) => setRoll(e.target.value)}
           />
-          {errors.roll && <div className="err">{errors.roll}</div>}
-        </div>
+        </label>
+        {errors.roll && <div className="pr-err">{errors.roll}</div>}
 
-        <div className="field">
-          <label htmlFor="ob-hostel">Hostel</label>
-          <select id="ob-hostel" value={hostel} onChange={(e) => setHostel(e.target.value)}>
+        <label className="pr-field" htmlFor="ob-hostel">
+          <span className="pr-label">Hostel</span>
+          <select id="ob-hostel" className="pr-input" value={hostel} onChange={(e) => setHostel(e.target.value)}>
             <option value="">Select your hostel…</option>
             {AREAS.filter((a) => a.startsWith('Hostel')).map((h) => (
               <option key={h} value={h}>{h}</option>
             ))}
             <option value="Day Scholar">Day Scholar (no hostel)</option>
           </select>
-          {errors.hostel && <div className="err">{errors.hostel}</div>}
-        </div>
+        </label>
+        {errors.hostel && <div className="pr-err">{errors.hostel}</div>}
 
-        <div className="field">
-          <label htmlFor="ob-room">Room number (optional)</label>
+        <label className="pr-field" htmlFor="ob-room">
+          <span className="pr-label">Room number (optional)</span>
           <input
-            id="ob-room" placeholder="e.g. B-214" value={room}
+            id="ob-room" className="pr-input" placeholder="e.g. B-214" value={room}
             onChange={(e) => setRoom(e.target.value)} maxLength={12}
           />
-          {errors.room && <div className="err">{errors.room}</div>}
-        </div>
+        </label>
+        {errors.room && <div className="pr-err">{errors.room}</div>}
 
-        <button type="submit" className="btn btn-lg onboard-submit">
+        <button type="submit" className="pr-btn pr-btn--primary">
           {editing ? 'Save changes' : 'Continue'}
         </button>
       </form>
@@ -89,12 +94,12 @@ export default function Onboarding({ initial, onDone }) {
       {editing && (
         <button
           type="button"
-          className="btn-ghost onboard-reset"
+          className="pr-reset"
           onClick={() => { resetSession(); window.location.reload(); }}
         >
           Reset session (demo)
         </button>
       )}
-    </div>
+    </main>
   );
 }

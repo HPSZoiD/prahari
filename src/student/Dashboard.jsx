@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { HeartPulse, Flame, Shield, MapPin, ChevronRight } from 'lucide-react';
+import { HeartPulse, Flame, Shield, MapPin } from 'lucide-react';
 import { AREAS, HOLD_MS, SOS_TYPES, UNSPECIFIED_AREA } from '../config.js';
 import { supabase } from '../lib/supabase.js';
 import { getSessionId } from '../lib/session.js';
 import { startWarmWatch, cachedFix, refineLocation, getLocationStatus } from '../lib/location.js';
+import { haptic } from '../lib/haptic.js';
 import HoldButton from './HoldButton.jsx';
 
 // Icon map for SOS types (lucide, no emoji)
@@ -11,6 +12,12 @@ const TYPE_ICONS = {
   medical: HeartPulse,
   fire: Flame,
   safety: Shield,
+};
+
+const TYPE_TINTS = {
+  medical: 'var(--red)',
+  fire: 'var(--orange)',
+  safety: 'var(--blue)',
 };
 
 // Area TTL: clear selection 10 min after last set, on every reload.
@@ -107,25 +114,34 @@ export default function Dashboard({ profile, onFired, onEdit }) {
   };
 
   const selected = type ? SOS_TYPES.find((t) => t.id === type.id) : null;
+  const selectedIdx = SOS_TYPES.findIndex((t) => t.id === type?.id);
 
   return (
     <div>
-      {/* Profile pill */}
-      <div className="profile-chip">
-        <div className="who">
-          <div className="name">{profile.name}</div>
-          <div className="meta">
+      {/* Profile card */}
+      <div className="pr-card pr-profile pr-enter" style={{ '--i': 1 }}>
+        <div className="pr-avatar" aria-hidden="true">
+          {(profile.name || '?').trim().charAt(0).toUpperCase()}
+        </div>
+        <div className="pr-profile__text">
+          <div className="pr-profile__name">{profile.name}</div>
+          <div className="pr-profile__sub">
             {profile.hostel}{profile.room ? ` · ${profile.room}` : ''}
           </div>
         </div>
-        <div className="actions">
-          <button className="btn-ghost" onClick={onEdit}>Edit</button>
-        </div>
+        <button type="button" className="pr-link" onClick={onEdit}>Edit</button>
       </div>
 
       {/* Type selector */}
-      <div className="section-label">What is happening?</div>
-      <div className="type-grid" role="radiogroup" aria-label="Emergency type">
+      <h3 className="pr-section-title pr-enter" style={{ '--i': 2 }}>What is happening?</h3>
+      <div
+        className="pr-seg pr-enter"
+        style={{ '--i': 3, '--idx': Math.max(selectedIdx, 0) }}
+        data-has-value={selectedIdx >= 0}
+        role="radiogroup"
+        aria-label="Emergency type"
+      >
+        <span className="pr-seg__thumb" aria-hidden="true" />
         {SOS_TYPES.map((t) => {
           const Icon = TYPE_ICONS[t.id];
           const sel = type?.id === t.id;
@@ -135,28 +151,26 @@ export default function Dashboard({ profile, onFired, onEdit }) {
               type="button"
               role="radio"
               aria-checked={sel}
-              className={`type-card ${sel ? 'selected' : ''}`}
-              style={{ '--tc': t.accent }}
-              onClick={() => setType(t)}
+              className="pr-seg__item"
+              style={{ '--seg-tint': TYPE_TINTS[t.id] }}
+              onClick={() => { setType(t); haptic(8); }}
             >
-              <span className="t-icon" aria-hidden="true">
-                <Icon size={20} strokeWidth={1.5} />
-              </span>
-              <span className="t-label">{t.label}</span>
+              <Icon size={26} strokeWidth={1.75} aria-hidden="true" />
+              <span>{t.label}</span>
             </button>
           );
         })}
       </div>
 
       {/* Area row */}
-      <div className="section-label">Where are you? (optional)</div>
+      <h3 className="pr-section-title pr-enter" style={{ '--i': 4 }}>Where are you? (optional)</h3>
 
       {areaOpen ? (
-        <>
-          <div className="area-picker">
-            <MapPin size={15} strokeWidth={1.5} style={{ color: 'var(--ink-2)', flexShrink: 0 }} aria-hidden="true" />
+        <div className="pr-enter" style={{ '--i': 5 }}>
+          <div className="pr-area-picker">
+            <MapPin size={18} strokeWidth={1.75} style={{ color: 'var(--label-2)', flexShrink: 0 }} aria-hidden="true" />
             <input
-              className="ap-input"
+              className="pr-area-input"
               list="area-options"
               placeholder="Pick your current area…"
               value={area ?? ''}
@@ -173,58 +187,60 @@ export default function Dashboard({ profile, onFired, onEdit }) {
             </datalist>
             {area !== null && (
               <button
-                type="button" className="ap-clear" aria-label="Clear area"
+                type="button" className="pr-area-clear" aria-label="Clear area"
                 onClick={() => setArea(null)}
               >✕</button>
             )}
           </div>
-          <div className="area-note">
+          <div className="pr-area-note">
             {area !== null
               ? <>Reporting from <strong>{area}</strong> · clears in 10 min</>
               : <>No area picked — alert sends under <strong>{UNSPECIFIED_AREA}</strong>. Command will confirm with reporters.</>}
           </div>
-        </>
+        </div>
       ) : (
-        <div
-          className="dash-area-row"
-          role="button"
-          tabIndex={0}
-          aria-label="Set reporting area"
-          onClick={() => setAreaOpen(true)}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setAreaOpen(true); }}
-        >
-          <span className="area-label">Reporting from</span>
-          <span className={`gps-chip ${fixNote === 'GPS off' ? 'off' : ''}`}>{fixNote || 'GPS…'}</span>
-          <span className={`area-value ${area ? '' : 'unset'}`}>{area || 'Not set'}</span>
-          <ChevronRight size={15} strokeWidth={1.5} style={{ color: 'var(--ink-2)', flexShrink: 0 }} aria-hidden="true" />
+        <div className="pr-list pr-enter" style={{ '--i': 5 }}>
+          <button
+            type="button"
+            className="pr-row"
+            aria-label="Set reporting area"
+            onClick={() => setAreaOpen(true)}
+          >
+            <span className="pr-row__label">Reporting from</span>
+            <span className={`pr-chip ${fixNote === 'GPS off' ? 'is-off' : ''}`}>{fixNote || 'GPS…'}</span>
+            <span className={`pr-row__value ${area ? '' : 'unset'}`}>{area || 'Not set'}</span>
+            <svg className="pr-chevron" viewBox="0 0 8 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M1 1l6 6-6 6" /></svg>
+          </button>
         </div>
       )}
 
       {/* Send */}
-      <div className="section-label">Send alert</div>
+      <h3 className="pr-section-title pr-enter" style={{ '--i': 6 }}>Send alert</h3>
 
-      <div className="hold-zone">
-        <HoldButton
-          holdMs={HOLD_MS}
-          disabled={!selected || sending}
-          armed={Boolean(selected) && !sending}
-          onComplete={fire}
-          label={selected ? 'HOLD' : 'SELECT TYPE'}
-          sublabel={selected ? '2 seconds' : ''}
-        />
-        <div className="hold-hint">
-          {selected ? 'Hold to send' : 'Select a type to arm'}
+      <div className="pr-sos-zone pr-enter" style={{ '--i': 7 }}>
+        <div className="pr-sos-wrap">
+          <HoldButton
+            holdMs={HOLD_MS}
+            disabled={!selected || sending}
+            armed={Boolean(selected) && !sending}
+            onComplete={fire}
+            label={selected ? 'HOLD' : 'SELECT TYPE'}
+            sublabel={selected ? '2 seconds' : ''}
+          />
+          <p className="pr-sos-caption">
+            {selected ? 'Hold to send' : 'Select a type to arm'}
+          </p>
+          {error && (
+            <div className="pr-error-chip" role="alert">
+              {error}
+            </div>
+          )}
         </div>
-        {error && (
-          <div className="chip chip-red" role="alert">
-            {error}
-          </div>
-        )}
       </div>
 
       {sending && (
-        <div className="sending-overlay" role="status">
-          <span className="spinner" style={{ width: 32, height: 32, borderWidth: 3 }} />
+        <div className="pr-sending" role="status">
+          <span className="pr-spinner" />
           Sending report…
         </div>
       )}

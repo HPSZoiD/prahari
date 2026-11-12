@@ -5,8 +5,6 @@ import { getSessionId } from '../lib/session.js';
 import { ConnPill, StatusChip, fmtTime } from '../lib/ui.jsx';
 
 // Live status screen: Sent → Acknowledged → Resolved (or Cancelled).
-// Field Report design: paper sheet, hairline timeline, tabular timestamps.
-// Quiet "Withdraw report" text button (pre-ack only). No emoji.
 export default function ActiveSOS({ active, profile, onEnded }) {
   const [incident, setIncident] = useState(null);
   const [conn, setConn] = useState('connecting');
@@ -101,15 +99,15 @@ export default function ActiveSOS({ active, profile, onEnded }) {
   ];
 
   return (
-    <div className="active-sos">
+    <div className="pr-active">
       {/* Filed header */}
-      <div className="card sos-filed-head" style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '18px 20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between' }}>
-          <span className="sos-seal-mark">Report filed</span>
+      <div className="pr-card pr-filed">
+        <div className="pr-filed__top">
+          <span className="pr-filed__mark">Report filed</span>
           <StatusChip status={status === 'reset' ? 'cancelled' : (status || 'active')} />
         </div>
-        <div className="sos-ref">{refNum}</div>
-        <div style={{ fontSize: 13, color: 'var(--ink-2)', marginTop: 2 }}>
+        <div className="pr-filed__ref">{refNum}</div>
+        <div className="pr-filed__note">
           {status === 'reset'
             ? 'Drill ended from Command.'
             : status === 'active'
@@ -124,11 +122,11 @@ export default function ActiveSOS({ active, profile, onEnded }) {
 
       {/* Resolved stamp */}
       {status === 'resolved' && (
-        <div className="resolved-stamp">Resolved</div>
+        <div className="pr-resolved">Resolved</div>
       )}
 
       {/* Timeline */}
-      <div className="card timeline">
+      <div className="pr-card pr-timeline">
         {STEPS.map((s, i) => {
           const done = i < step;
           const now  = i === step;
@@ -137,7 +135,7 @@ export default function ActiveSOS({ active, profile, onEnded }) {
               <div className="tl-dot" />
               <div className="tl-body">
                 <div className="tl-label">{s.label}</div>
-                <div className="tl-time tabnum">{fmtTime(s.time)}</div>
+                <div className="tl-time tnum">{fmtTime(s.time)}</div>
               </div>
             </div>
           );
@@ -145,18 +143,18 @@ export default function ActiveSOS({ active, profile, onEnded }) {
       </div>
 
       {/* Info card */}
-      <div className="card sos-info-card">
-        <div className="sos-info-row">
+      <div className="pr-card pr-info-card">
+        <div className="pr-info-row">
           <span className="k">Emergency type</span>
           <span className="v">{t.label}</span>
         </div>
-        <div className="sos-info-row">
+        <div className="pr-info-row">
           <span className="k">Reporting from</span>
           <span className="v">
             {areaWasSelected ? reportedArea : 'Location not specified'}
           </span>
         </div>
-        <div className="sos-info-row">
+        <div className="pr-info-row">
           <span className="k">Status</span>
           <span className="v">
             <StatusChip status={incident?.status || 'active'} />
@@ -166,7 +164,7 @@ export default function ActiveSOS({ active, profile, onEnded }) {
 
       {/* Others note */}
       {others > 0 && (
-        <div className="others-note">
+        <div className="pr-others">
           You + <strong>{others} other{others > 1 ? 's' : ''}</strong> reported this
           {areaWasSelected ? ` from ${reportedArea}` : ''} — Command sees it as one incident.
         </div>
@@ -174,26 +172,26 @@ export default function ActiveSOS({ active, profile, onEnded }) {
 
       {/* Withdraw (pre-ack only) */}
       {status === 'active' && (
-        <div className="cancel-zone">
+        <div className="pr-cancel">
           {confirmCancel ? (
-            <div className="cancel-confirm">
-              <button className="btn btn-danger btn-sm" onClick={doCancel} disabled={cancelling}>
+            <div className="pr-cancel-confirm">
+              <button className="pr-btn pr-btn-sm pr-btn-danger" onClick={doCancel} disabled={cancelling}>
                 {cancelling ? 'Withdrawing…' : 'Yes, withdraw report'}
               </button>
-              <button className="btn btn-outline btn-sm" onClick={() => setConfirmCancel(false)} disabled={cancelling}>
+              <button className="pr-btn pr-btn-sm pr-btn-secondary" onClick={() => setConfirmCancel(false)} disabled={cancelling}>
                 Keep active
               </button>
             </div>
           ) : (
-            <button className="btn btn-ghost btn-sm" onClick={() => setConfirmCancel(true)}>
+            <button className="pr-btn pr-btn-sm pr-btn-secondary" onClick={() => setConfirmCancel(true)}>
               Withdraw report
             </button>
           )}
-          {cancelBlocked && <div className="chip chip-indigo">{cancelBlocked}</div>}
+          {cancelBlocked && <div className="pr-error-chip">{cancelBlocked}</div>}
         </div>
       )}
 
-      <div className="center" style={{ marginTop: 8 }}>
+      <div className="pr-center">
         <ConnPill state={conn} />
       </div>
     </div>

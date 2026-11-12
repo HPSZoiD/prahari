@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 // Hold-to-trigger button with SVG progress ring.
-// 168px circle, --seal fill, 3px ring in white/35 that fills clockwise over 2s.
-// No emoji, no animation except the ring and scale(.97) on press.
+// The 2s timer and pointer/keyboard handlers are unchanged; only the visual
+// shell and ring styling moved to the iOS-style components.css.
 export default function HoldButton({
   holdMs = 2000,
   disabled = false,
@@ -12,7 +12,7 @@ export default function HoldButton({
   sublabel = '2 seconds',
 }) {
   const SIZE = 184;
-  const STROKE = 3;
+  const STROKE = 6;
   // Ring radius: half size minus half stroke, with a small inset gap
   const R = (SIZE / 2) - STROKE - 4;
   const CIRC = 2 * Math.PI * R;
@@ -70,55 +70,47 @@ export default function HoldButton({
 
   const displayLabel = state === 'fired' ? 'Sent' : label;
   const displaySub   = state === 'holding' ? 'Keep holding…' : (sublabel || '2 seconds');
+  const visualState  = !armed ? 'idle' : state === 'holding' ? 'holding' : 'armed';
 
   return (
-    <button
-      type="button"
-      className={`hold-btn ${armed && !disabled ? 'armed' : ''} ${state === 'holding' ? 'holding' : ''} ${state === 'fired' ? 'fired' : ''}`}
-      disabled={disabled}
-      aria-label={`Hold to send ${displayLabel} SOS`}
-      style={{ width: SIZE, height: SIZE }}
-      onPointerDown={(e) => { e.preventDefault(); try { e.target.setPointerCapture(e.pointerId); } catch { /* ok */ } begin(); }}
-      onPointerUp={stop}
-      onPointerCancel={stop}
-      onPointerLeave={stop}
-      onKeyDown={(e) => {
-        if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) { e.preventDefault(); begin(); }
-      }}
-      onKeyUp={(e) => { if (e.key === ' ' || e.key === 'Enter') stop(); }}
-      onContextMenu={(e) => e.preventDefault()}
+    <div
+      className="pr-sos"
+      data-state={visualState}
+      style={{ '--hold-ms': `${holdMs}ms` }}
     >
       {/* SVG ring — rotated so progress starts at 12 o'clock */}
-      <svg
-        className="hb-svg"
-        viewBox={`0 0 ${SIZE} ${SIZE}`}
-        aria-hidden="true"
-        style={{ transform: 'rotate(-90deg)' }}
-      >
-        {/* Background circle (the seal fill) */}
-        <circle
-          className="hb-ring-bg"
-          cx={cx} cy={cx} r={cx - 1}
-        />
-        {/* Progress arc */}
+      <svg className="pr-sos__ring" viewBox={`0 0 ${SIZE} ${SIZE}`} aria-hidden="true">
+        <circle className="pr-sos__track" cx={cx} cy={cx} r={R} />
         <circle
           ref={ringRef}
-          className="hb-ring-fill"
+          className="pr-sos__progress"
           cx={cx} cy={cx} r={R}
+          fill="none"
+          strokeWidth={STROKE}
+          strokeLinecap="round"
           strokeDasharray={CIRC}
           strokeDashoffset={CIRC}
-          strokeWidth={STROKE}
-          fill="none"
-          stroke="rgba(255,255,255,.45)"
-          strokeLinecap="round"
         />
       </svg>
 
-      {/* Inner core */}
-      <span className="hb-core">
-        <span className="hb-title">{displayLabel}</span>
-        {!disabled && <span className="hb-sub">{displaySub}</span>}
-      </span>
-    </button>
+      <button
+        type="button"
+        className="pr-sos__btn"
+        disabled={disabled}
+        aria-label={`Hold to send ${displayLabel} SOS`}
+        onPointerDown={(e) => { e.preventDefault(); try { e.target.setPointerCapture(e.pointerId); } catch { /* ok */ } begin(); }}
+        onPointerUp={stop}
+        onPointerCancel={stop}
+        onPointerLeave={stop}
+        onKeyDown={(e) => {
+          if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) { e.preventDefault(); begin(); }
+        }}
+        onKeyUp={(e) => { if (e.key === ' ' || e.key === 'Enter') stop(); }}
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        <span className="pr-sos__label">{displayLabel}</span>
+        {!disabled && <span className="pr-sos__sub">{displaySub}</span>}
+      </button>
+    </div>
   );
 }

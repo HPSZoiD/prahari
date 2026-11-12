@@ -1,0 +1,99 @@
+:root {
+  color-scheme: light dark;
+
+  /* ---------- Font ---------- */
+  /* Apple devices render real SF Pro via -apple-system. Others get Inter. */
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter Variable",
+          system-ui, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+
+  /* ---------- Colour (light) ---------- */
+  --bg: #F2F2F7;                       /* page / grouped background */
+  --bg-elevated: #FFFFFF;              /* cards, sheets */
+  --label: #000000;                    /* primary text */
+  --label-2: rgba(60, 60, 67, 0.72);   /* secondary text (raised from Apple's .6 for contrast) */
+  --label-3: rgba(60, 60, 67, 0.45);   /* placeholders, chevrons */
+  --separator: rgba(60, 60, 67, 0.18); /* hairlines */
+  --fill: rgba(120, 120, 128, 0.12);   /* inputs, segmented track */
+  --fill-2: rgba(120, 120, 128, 0.18); /* disabled controls, pressed rows */
+
+  --blue: #007AFF;
+  --blue-tint: rgba(0, 122, 255, 0.12);
+  --blue-ring: rgba(0, 122, 255, 0.30);
+  --red: #FF3B30;
+  --red-text: #D70015;                 /* red for SMALL text (passes contrast on white) */
+  --red-tint: rgba(255, 59, 48, 0.12);
+  --orange: #FF9500;
+  --orange-text: #9A5B00;
+  --orange-tint: rgba(255, 149, 0, 0.14);
+  --green: #34C759;
+  --green-text: #1E7B36;
+  --green-tint: rgba(52, 199, 89, 0.16);
+
+  --seg-thumb: #FFFFFF;
+  --glass-bg: rgba(255, 255, 255, 0.62);
+  --scrim: rgba(0, 0, 0, 0.32);
+  --glass-shadow: 0 8px 28px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.06);
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.05);
+  --lens: rgba(120, 120, 128, 0.16);   /* tab bar selection lens */
+  --idle-btn-top: #E9E9EE;
+  --idle-btn-bottom: #D6D6DC;
+
+  /* ---------- Shape ---------- */
+  --r-card: 20px;
+  --r-ctl: 13px;
+  --r-pill: 999px;
+
+  /* ---------- Spacing (4pt grid) ---------- */
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 24px; --s8: 32px;
+  --page-x: 18px;
+
+  /* ---------- Motion ---------- */
+  --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);   /* Apple-like decelerate, for sheets/slides/thumbs */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* approximate bouncy spring (valid CSS linear() easing) */
+  --spring: linear(0, 0.35 8%, 0.80 18%, 1.05 30%, 1.08 38%, 1.02 55%, 0.995 70%, 1);
+  --t-fast: 140ms;
+  --t-med: 280ms;
+  --t-slow: 450ms;
+
+  /* ---------- Layout ---------- */
+  --tabbar-h: 58px;
+  --tabbar-gap: 10px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000000;
+    --bg-elevated: #1C1C1E;
+    --label: #FFFFFF;
+    --label-2: rgba(235, 235, 245, 0.72);
+    --label-3: rgba(235, 235, 245, 0.38);
+    --separator: rgba(84, 84, 88, 0.55);
+    --fill: rgba(120, 120, 128, 0.24);
+    --fill-2: rgba(120, 120, 128, 0.32);
+
+    --blue: #0A84FF;
+    --blue-tint: rgba(10, 132, 255, 0.20);
+    --blue-ring: rgba(10, 132, 255, 0.40);
+    --red: #FF453A;
+    --red-text: #FF6961;
+    --red-tint: rgba(255, 69, 58, 0.18);
+    --orange: #FF9F0A;
+    --orange-text: #FFB340;
+    --orange-tint: rgba(255, 159, 10, 0.18);
+    --green: #30D158;
+    --green-text: #4CD964;
+    --green-tint: rgba(48, 209, 88, 0.18);
+
+    --seg-thumb: #636366;
+    --glass-bg: rgba(44, 44, 46, 0.55);
+    --scrim: rgba(0, 0, 0, 0.55);
+    --glass-shadow: 0 8px 28px rgba(0, 0, 0, 0.5), 0 0 0 0.5px rgba(255, 255, 255, 0.10);
+    --card-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06);
+    --lens: rgba(255, 255, 255, 0.14);
+    --idle-btn-top: #3A3A3C;
+    --idle-btn-bottom: #2C2C2E;
+  }
+}
