@@ -1,0 +1,28 @@
+{
+  "name": "prahari",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Project Prahari — college campus SOS drill system. V1: real-time student SOS + Command board (Supabase + Netlify).",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:demo": "vite --mode demo",
+    "build": "vite build",
+    "preview": "vite preview --port 4173",
+    "preview:demo": "vite preview --mode demo --port 4173",
+    "loadtest": "node scripts/load-test.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "qrcode": "^1.5.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.0"
+  },
+  "allowScripts": {
+    "esbuild@0.21.5": true
+  }
+}
