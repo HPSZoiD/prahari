@@ -1,310 +1,390 @@
-# Project Prahari — V1
+<div align="center">
 
-College campus SOS drill system. Two interfaces, one real-time loop:
+# PRAHARI
 
-- **Prahari (Student)** — a phone web app. Local profile (no signup), pick a
-  type, hold 2 seconds. Location + details reach campus Command instantly.
-- **Prahari Command (Authority)** — a projector board for warden / security /
-  medical / fire. Alerts light up typed panels, one shared siren runs,
-  responders acknowledge and resolve.
+**Campus safety drill platform**
 
-**Everything is in-system: no SMS, no calls, no telecom APIs. Everything is
-labelled DRILL.**
+A real-time SOS workflow with a student web app, a command board, and a grounded campus safety assistant.
 
-Stack (as locked in the V1 brief): **React + Vite SPA → Netlify (free)**,
-**Supabase (Postgres + Realtime + Auth, free tier)**, empty Netlify Functions
-(reserved for the post-V1 Groq chatbot proxy).
+React 18 · Vite 5 · Supabase · Netlify Functions · Groq
+
+</div>
 
 ---
 
-## 1. What's in the box
+## Overview
 
-```
-prahari/
-├─ netlify.toml            # build command, publish dist, functions dir (empty in V1)
-├─ VERIFICATION.md         # V1.1 pass/fail report per requirement
-├─ public/
-│  ├─ _redirects           # /*  /index.html  200   (SPA routing)
-│  └─ favicon.svg
-├─ scripts/
-│  └─ load-test.mjs        # 70 concurrent raise_sos calls + grouping verification
-├─ src/
-│  ├─ config.js            # AREAS + SOS_TYPES + PANELS + BRAND (single source of truth)
-│  ├─ lib/
-│  │  ├─ supabase.js       # real client, or demo mock (VITE_PRDH_DEMO=1)
-│  │  ├─ mock-supabase.js  # in-browser mock backend (local rehearsal only)
-│  │  ├─ session.js        # localStorage profile + session UUID
-│  │  ├─ location.js       # cached-first GPS: warm watch, refine after send
-│  │  └─ ui.jsx            # toasts, chips, pills, timers, hold-to-confirm
-│  ├─ student/             # Onboarding, Dashboard, HoldButton, ActiveSOS
-│  └─ command/             # Login, Board, IncidentCard, Siren, DrillControls, ShareQR
-└─ supabase/
-   └─ schema.sql           # tables + race-safe indexes + RLS + RPCs + publication
-```
+Prahari connects two interfaces through one live incident loop:
 
-V1 decisions already baked in (from the build handoff):
+- **Student** — a mobile-first web app. Students create a local profile, choose an emergency type, optionally pick an area, and hold the SOS button for two seconds. The alert reaches the Command board instantly.
+- **Command** — an operations board for wardens, security, medical, and fire staff. Alerts are grouped by emergency type and area, acknowledged, resolved, and tracked with a live timeline.
+- **Assist** — a safety information assistant inside the student app. It answers from a controlled campus knowledge base and never claims to have contacted anyone.
 
-| Decision | Value |
+The project is designed for campus safety rehearsals and drill exercises, with real-time grouping and acknowledgement behaviour that mirrors a production incident workflow.
+
+---
+
+## Capabilities
+
+| Area | What it does |
 |---|---|
-| Branding | "Project Prahari — Campus Safety Drill" (no college name) |
-| Areas | Block A, Block B, Hostel 1, Hostel 2, Ground, Library, Auditorium, Canteen (+ reserved `Unspecified` bucket) |
-| Phone field | **Not collected** (column kept in schema for forward-compat) |
-| Theme | Light institutional — red reserved strictly for active alerts |
-| Siren | Two-tone yelp (650/950 Hz), **synthesized via Web Audio** — one derived-state loop, no audio file |
-
-## V1.1 changes (this build)
-
-- **Siren fixed + file-free**: pure Web Audio oscillator (650/950 Hz yelp).
-  The V1 mp3 approach could leave the siren/Test button dead under
-  autoplay policy; the oscillator cannot fail to load, and **Test is
-  always pressable** (the click itself unlocks audio).
-- **Silent mode removed from the student UI** — sends are always silent on
-  the phone (`p_silent: true`, DB default `true`).
-- **Onboarding asks hostel + optional room** (not "usual area"). Residence
-  is snapshotted into each report as an **unverified hint** for Command —
-  never a grouping key. Old V1 profiles get a one-time re-onboard.
-- **Optional area selector before SOS**: searchable dropdown limited to
-  the 8 configured areas (no free text → no fragmentation). Cleared
-  automatically after 10 minutes and on every reload.
-- **`Unspecified` reserved bucket**: sending without picking an area still
-  fires instantly (`location_source = 'unspecified'`); Command sees an
-  "Area not selected" badge and a "verify with reporters" warning.
-  **Grouping is still `(type, area)` via the unchanged
-  `one_open_incident` partial unique index** — hostel and GPS are never
-  grouping fallbacks, and there are no zones.
-- **Live location still captured on every send** (cached-first, refined
-  after send); shown to Command as a Maps pin + accuracy chip, evidence
-  only.
-- `raise_sos` accepts `p_hostel` / `p_room`; returns
-  `{incident_id, event_id, report_count, status, area, location_source}`.
-- Simulate Burst mixes areas + Unspecified + all three types.
-- Verification: **81/81 schema checks** (incl. 70-way mixed concurrency
-  and both SQL invariant checks from the spec) — see `VERIFICATION.md`.
+| Student onboarding | Local-only profile with name, roll number, hostel, and optional room. No student accounts or signup. |
+| SOS | Hold-to-send with a two-second confirmation, emergency type selection, and optional area. Full-screen sending state prevents duplicate sends. |
+| Active incident | Live status, acknowledgement and resolution updates, timeline, elapsed time, location evidence, and pre-acknowledgement withdrawal. |
+| Location | Cached-first GPS capture. Sends immediately with an available fix, then refines with a high-accuracy update after the alert is filed. Works with location denied. |
+| Command board | Live incident panels, grouped reports, acknowledgement, resolution, append-only log, shared siren, speaker test, reset drill, and simulated burst. |
+| Assist | Streaming chat interface, suggested questions, conversation persistence, retry handling, and a helpline sheet rendered from the same knowledge base. |
+| Helplines | National and campus numbers grouped by scope, with tap-to-call links. Campus entries are explicitly marked as sample data. |
+| Design | Responsive iOS-inspired interface with light and dark themes, reduced-motion support, reduced-transparency fallbacks, and 44px minimum touch targets. |
 
 ---
 
-## 2. Quick start (zero setup): demo mode
+## Architecture
 
-Rehearse the entire product in your browser with the mock backend — no
-Supabase account needed:
+```mermaid
+flowchart LR
+  subgraph Clients["Client devices"]
+    Student["Student app<br/>React + Vite"]
+    Command["Command board<br/>React + Vite"]
+  end
+
+  subgraph Netlify["Netlify"]
+    CDN["Static hosting<br/>SPA fallback"]
+    Fn["/api/chat<br/>Netlify Function"]
+  end
+
+  subgraph Supabase["Supabase"]
+    Auth["Auth<br/>single Command account"]
+    DB[("Postgres<br/>incidents · sos_events · incident_log")]
+    RT["Realtime<br/>postgres_changes"]
+    RPC["SECURITY DEFINER RPCs<br/>raise_sos · update_sos_location<br/>cancel_sos · reset_drill"]
+  end
+
+  Groq["Groq API<br/>openai/gpt-oss-120b"]
+  KB["Campus knowledge base<br/>src/data/campus.mjs"]
+
+  Student -->|anon RPC calls| RPC
+  RPC --> DB
+  Command -->|email + password| Auth
+  Command -->|RLS reads and status writes| DB
+  DB --> RT
+  RT --> Student
+  RT --> Command
+  Student -->|POST conversation| Fn
+  Fn --> KB
+  Fn -->|streaming completion| Groq
+  Groq -->|token stream| Fn
+  Fn -->|plain text stream| Student
+  CDN --> Student
+  CDN --> Command
+```
+
+### SOS data flow
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant S as Student app
+  participant DB as Supabase
+  participant C as Command board
+
+  S->>DB: raise_sos(profile, type, area, coordinates)
+  DB->>DB: find or create open incident for (type, area)
+  DB->>DB: insert sos_event and incident_log
+  DB-->>S: incident_id, event_id, report_count
+  DB-->>C: Realtime incident and event updates
+  C->>DB: acknowledge or resolve incident
+  DB-->>S: Realtime status change
+  Note over S,DB: A high-accuracy fix can refine coordinates after the report is filed.
+```
+
+### Request routing
+
+| Path | Served by | Purpose |
+|---|---|---|
+| `/` | Vite / Netlify | Student app |
+| `/command` | Vite / Netlify SPA fallback | Command login and board |
+| `/api/chat` | Netlify Function | Server-side Groq proxy with streaming |
+| `/rest/v1/*` | Supabase | RPCs, RLS-protected reads, status updates |
+| `/realtime/v1/*` | Supabase | Live incident and event subscriptions |
+
+---
+
+## Technology
+
+| Layer | Choice | Role |
+|---|---|---|
+| UI | React 18 + Vite 5 | Student app and Command board |
+| Styling | Hand-authored CSS tokens | iOS-inspired light and dark themes |
+| Font | Inter Variable via Fontsource | Consistent typography with an Apple system-font stack |
+| Data | Supabase Postgres | Incidents, SOS events, and append-only audit log |
+| Realtime | Supabase Realtime | Live updates for students and Command |
+| Auth | Supabase Auth | One Command account; students remain anonymous |
+| Functions | Netlify Functions | Server-side Groq proxy and rate limiting |
+| AI | Groq `openai/gpt-oss-120b` | Retrieval-grounded safety information |
+| Hosting | Netlify | Static SPA, HTTPS, and serverless functions |
+| Icons | lucide-react | Interface iconography |
+| Testing | Node + Postgres | Concurrent schema tests and load verification |
+
+---
+
+## Repository layout
+
+```text
+prahari/
+├─ netlify/
+│  └─ functions/
+│     └─ chat.mjs              # /api/chat Groq proxy, streaming, rate limit
+├─ public/
+│  ├─ _redirects               # SPA fallback for /command
+│  └─ favicon.ico              # App icon
+├─ pgtest/
+│  └─ test-schema.mjs          # Postgres schema and concurrency suite
+├─ scripts/
+│  └─ load-test.mjs            # Concurrent raise_sos acceptance test
+├─ src/
+│  ├─ App.jsx                  # / vs /command routing
+│  ├─ config.js                # Types, areas, panels, brand constants
+│  ├─ data/
+│  │  └─ campus.mjs            # Campus knowledge base + helplines (sample data)
+│  ├─ lib/
+│  │  ├─ assistClient.js       # Streaming /api/chat client
+│  │  ├─ assistStore.js        # Local conversation persistence
+│  │  ├─ haptic.js             # No-op-safe vibration helper
+│  │  ├─ location.js           # Cached-first GPS + post-send refinement
+│  │  ├─ mock-supabase.js      # In-browser demo backend
+│  │  ├─ session.js            # Local profile, session UUID, active SOS
+│  │  ├─ supabase.js           # Real or mock Supabase client
+│  │  └─ ui.jsx                # Toasts, chips, timers, hold actions
+│  ├─ student/
+│  │  ├─ Assist.jsx            # Chat, suggestions, helpline sheet
+│  │  ├─ ActiveSOS.jsx         # Live incident state and withdrawal
+│  │  ├─ BottomNav.jsx         # Glass tab bar
+│  │  ├─ Dashboard.jsx         # Profile, type selector, area, SOS
+│  │  ├─ HelplineSheet.jsx     # Emergency numbers bottom sheet
+│  │  ├─ HoldButton.jsx        # Two-second hold gesture
+│  │  ├─ Onboarding.jsx        # Local profile form
+│  │  ├─ StudentApp.jsx        # Student state and routing
+│  │  └─ StudentShell.jsx      # Shell and tab switching
+│  └─ styles/
+│     ├─ base.css              # Reset, type scale, glass, motion
+│     ├─ components.css        # Student interface components
+│     ├─ tokens.css            # Colour, spacing, motion, layout tokens
+│     ├─ legacy.css            # Operational Paper primitives for Command
+│     └─ command.css           # Command board styles
+├─ supabase/
+│  └─ schema.sql               # Tables, indexes, RLS, RPCs, realtime setup
+├─ netlify.toml                # Build, publish, functions, Node 20
+├─ VERIFICATION.md             # Requirement and verification report
+└─ README.md
+```
+
+---
+
+## Getting started
+
+### Prerequisites
+
+- Node.js 20 or newer
+- npm
+- A Supabase project for the real backend
+- A Groq API key for Assist
+- Netlify CLI for local function development and deployment
+
+### 1. Install
 
 ```bash
 npm install
-npm run dev:demo        # http://localhost:5173
 ```
 
-- Student app: open the printed URL. Fill the form, pick a type, hold the button.
-- Command: open `<URL>/command`, sign in with **any** email + password.
-- Open student + command in two tabs of the same browser — they sync live
-  (BroadcastChannel emulates Realtime; grouping/dedupe/cancel semantics mirror
-  `schema.sql` exactly).
-
-The mock is **rehearsal-only**. Production must always talk to real Supabase
-(demo mode is env-gated and never bundled into production builds).
-
-## 3. Real setup (10 minutes, all free)
-
-### 3a. Supabase
-
-1. Create a project at [supabase.com](https://supabase.com) (free tier is
-   plenty: ~71 realtime connections vs ~200 ceiling, 2M realtime
-   messages/month, 500 MB storage).
-2. **SQL Editor → New query** → paste the whole of `supabase/schema.sql` →
-   **Run**. It is idempotent (safe to re-run).
-3. **Authentication → Sign In / Providers** → **disable "Allow new users to
-   sign up"** (one Command account only, forever).
-4. **Authentication → Users → Add user** → create the single Command account
-   (email + password). This is the only credential in the system.
-5. Note **Project URL** and the **anon public key** (Settings → API). The anon
-   key is safe to ship to browsers — RLS does the gating. The service-role key
-   must **never** appear in this repo or the frontend.
-
-### 3b. Local dev against real Supabase
+### 2. Run the demo (no backend required)
 
 ```bash
-cp .env.example .env    # fill VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY
+npm run dev:demo
+```
+
+Open the printed URL for the student app and `/command` for the Command board. In demo mode, Command accepts any email and password. The in-browser mock backend emulates RPC grouping, realtime updates, acknowledgement, resolution, cancellation, and drill reset through `BroadcastChannel`.
+
+Demo mode is for local rehearsal only and is never enabled in production builds.
+
+### 3. Connect a real Supabase project
+
+1. Create a project at [supabase.com](https://supabase.com).
+2. Open the SQL Editor and run the full contents of `supabase/schema.sql`.
+3. Disable public signup under **Authentication → Sign In / Providers**.
+4. Create the single Command account under **Authentication → Users**.
+5. Copy the Project URL and anon public key from **Project Settings → API**.
+6. Create `.env` from `.env.example` and fill in the values.
+
+```bash
+cp .env.example .env
 npm run dev
 ```
 
-Phase-0 sanity check (SQL Editor): call `raise_sos` twice with the same
-type+area, different session UUIDs → you must get ONE incident with
-`report_count = 2`.
+`VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are read by the browser build. The anon key is safe to expose; RLS and `SECURITY DEFINER` RPCs enforce access. Never expose the service-role key to the frontend.
 
-### 3c. Netlify
+### 4. Run Assist locally
 
-1. Push this folder to a Git repo (or drag-drop — `dist/` after `npm run build`).
-2. New site from repo. Build command `npm run build`, publish `dist`
-   (already in `netlify.toml`).
-3. Environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
-4. Deploy. HTTPS is automatic (required for geolocation on phones).
+Vite alone does not serve the Netlify Function. Use Netlify Dev so both the SPA and `/api/chat` are available:
 
-`netlify/functions/` is intentionally empty in V1 — reserved for the Groq
-chatbot proxy later.
+```bash
+npx --yes netlify-cli@latest dev --offline
+```
+
+Add `GROQ_API_KEY` and, optionally, `GROQ_MODEL` to `.env`. Without a key, `/api/chat` returns a clear `503` configuration error and the rest of the app continues to work.
+
+### 5. Deploy to Netlify
+
+1. Connect the repository to Netlify.
+2. Confirm the build command is `npm run build` and the publish directory is `dist`.
+3. Add the environment variables listed below.
+4. Deploy. HTTPS is enabled automatically.
+
+The SPA fallback in `public/_redirects` keeps `/command` working on direct navigation and refresh.
 
 ---
 
-## 4. How the hard parts work
+## Environment variables
 
-### Grouping is race-safe at the DB level (never client-side)
+| Variable | Scope | Required | Description |
+|---|---|---|---|
+| `VITE_SUPABASE_URL` | Client build | Yes | Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | Client build | Yes | Supabase anon public key |
+| `GROQ_API_KEY` | Netlify Function | Yes for Assist | Server-side Groq key. Never prefix with `VITE_`. |
+| `GROQ_MODEL` | Netlify Function | No | Defaults to `openai/gpt-oss-120b` |
+| `VITE_PRDH_DEMO` | Local only | No | Enables the in-browser mock backend for `npm run dev:demo` |
 
-`raise_sos` is a SECURITY DEFINER function that does:
+Do not set `VITE_PRDH_DEMO` in production.
+
+---
+
+## How it works
+
+### Race-safe incident grouping
+
+Grouping happens in Postgres, never in the client. `raise_sos` creates or updates an open incident keyed by `(type, area)` and increments `report_count` atomically. A partial unique index guarantees that only one open incident can exist for each pair:
 
 ```sql
-insert into incidents (type, area, status, report_count)
-values (p_type, p_area, 'active', 1)
-on conflict (type, area) where status in ('active','acknowledged')
-do update set report_count = incidents.report_count + 1,
-              last_report_at = now()
-returning id;
+create unique index one_open_incident
+  on public.incidents (type, area)
+  where status in ('active', 'acknowledged');
 ```
 
-The partial unique index `one_open_incident on incidents (type, area) where
-status in ('active','acknowledged')` makes Postgres serialize 70 simultaneous
-presses into correct groups. A second index
-`one_active_report on sos_events (session_id) where status = 'active'`
-enforces one active report per student session. Resolving an incident drops it
-out of the index, so the next report opens a fresh incident.
+A second partial index prevents more than one active report per student session:
 
-**Verified:** the full schema passes a 48-check suite against real Postgres
-(included in the delivery archive as `pgtest/test-schema.mjs`), including
-70-connection concurrent bursts: same-pair → one incident with `report_count =
-70`; 6-pair spread → zero duplicate open pairs, exact counts, and the
-invariant `report_count = count(active sos_events)` holds.
+```sql
+create unique index one_active_report
+  on public.sos_events (session_id)
+  where status = 'active';
+```
 
-### Security model (RLS, not vibes)
+This makes concurrent bursts deterministic: the same pair produces one incident with an accurate report count, while different pairs remain separate.
 
-| Table | anon (students) | authenticated (Command) |
+### Security model
+
+| Table | Anonymous student | Authenticated Command |
 |---|---|---|
-| `incidents` | SELECT (status-back + realtime) | ALL |
-| `sos_events` | nothing (writes via definer RPCs only) | SELECT |
-| `incident_log` | nothing | SELECT |
+| `incidents` | `SELECT` | Full access |
+| `sos_events` | No direct access; writes only through RPCs | `SELECT` |
+| `incident_log` | No access | `SELECT` |
 
-A student with devtools open can watch incident statuses but can never read
-another student's name, roll or coordinates. Realtime enforces RLS on
-delivery. Students are `anon` permanently — no auth means no anonymous-sign-in
-rate limit when 70 phones share classroom NAT.
+Students never read another student's name, roll number, room, or coordinates. Realtime delivery also respects RLS. Command authentication is restricted to one account created manually in Supabase.
 
-### One siren, derived state
+### Location handling
 
-```
-anyActive = incidents.some(i => i.status === 'active')
-anyActive && onDuty → siren.play()   else → pause + rewind
-```
+1. A warm geolocation watch starts when the dashboard opens. Nothing leaves the device.
+2. On send, the best cached fix is attached immediately if available.
+3. After the incident is filed, a high-accuracy `getCurrentPosition` call refines the coordinates through `update_sos_location`.
+4. If permission is denied or no fix exists, the SOS still sends. Grouping never depends on GPS.
 
-One `<audio loop>` element. The **Go On Duty** click unlocks audio
-(play→pause inside the gesture) so the siren cannot silently fail on demo day.
-A 🔊 Test button plays a 1.2 s sample for the AV check.
+Hostel and room are stored as a residence hint for responders. They are never used as grouping keys.
 
-### Cached-first location
+### Realtime and recovery
 
-The dashboard silently warms a GPS fix (on-device only — nothing is sent until
-an SOS fires). On send: cached fix goes out immediately (or nothing — grouping
-uses the selected **area**, never GPS). After sending, a high-accuracy
-`getCurrentPosition` refines the pin via `update_sos_location`. Phones with
-location denied work perfectly.
+- Command refetches incidents and events on subscription and on tab visibility changes.
+- Student active-incident screens subscribe to their incident channel and also poll every 15 seconds, so a drill reset or a missed realtime event resolves cleanly.
+- Command status changes propagate to the student screen as live acknowledgements and resolutions.
 
-### Reconnect healing
+### Shared siren
 
-Command and student refetch everything on channel re-subscribe (and on tab
-visibility). A 15 s student poll catches the one event realtime cannot
-deliver: `Reset Drill` truncating tables mid-demo — the student screen ends
-gracefully ("Drill ended") instead of hanging.
+The Command board runs one siren for all active incidents. The siren is derived from `anyActive && onDuty`, so a second alert never starts a second loop. Audio is synthesized with the Web Audio API at 650/950 Hz, avoiding audio-file load failures. The on-duty gesture unlocks audio, and the test button provides a short two-tone sample.
 
----
+### Assist safeguards
 
-## 5. Demo-day runbook
-
-1. **~10 min before:** open the Supabase project and run any query — free-tier
-   projects pause after inactivity and need waking.
-2. Laptop on ethernet/hotspot. Board loaded at `<site>/command`, signed in.
-3. Click **GO ON DUTY** (this arms + unlocks the siren), then **🔊 Test** once
-   so the room hears the speakers work. Connection pill must read **● Live**.
-4. **⟲ Reset Drill** (hold) → clean board on the projector.
-5. **📱 Share / QR** → project the QR. "Open the link, fill the 30-second
-   form, pick a type, hold the button."
-6. Panels light up, alerts group by (type, area), siren runs (one loop, not
-   one per alert). **Acknowledge** one → that student's phone flips to "Help
-   acknowledged" live. **Resolve** → their phone returns to the dashboard.
-7. WiFi dies? **⚡ Simulate Burst** — fake reporters through the REAL
-   `raise_sos` RPC. Nobody in the room knows.
+- The Groq key stays on the server. The browser only calls `/api/chat`.
+- Requests are limited to 12 turns and 2,000 characters per message.
+- The function applies a per-IP rate limit of 12 requests per minute.
+- The model receives a system prompt built from `src/data/campus.mjs` and is instructed to use only that knowledge.
+- In an active emergency, the first response directs the user to the SOS button and a relevant helpline.
+- Campus contact details are sample data and are labelled as such in the interface.
+- Responses stream to the client as plain text; cancellation and retry are handled by the chat UI.
 
 ---
 
-## 6. Load test (acceptance #1)
+## Data model
 
-Against your deployed Supabase project:
+| Object | Purpose |
+|---|---|
+| `incidents` | One open or closed incident per `(type, area)` pair, including status, report count, acknowledgement, resolution, and timing fields |
+| `sos_events` | One row per student report, including profile snapshot, residence hint, coordinates, accuracy, and status |
+| `incident_log` | Append-only audit timeline for incident changes |
+| `raise_sos(...)` | Validates input, groups the incident, inserts the event, writes the log, and returns incident and event identifiers |
+| `update_sos_location(...)` | Refines coordinates after send while the report is active |
+| `cancel_sos(...)` | Withdraws an unacknowledged report and updates the incident count |
+| `reset_drill()` | Command-only truncation of all three tables between exercises |
+
+The full schema, policies, grants, indexes, and function bodies live in `supabase/schema.sql`.
+
+---
+
+## Design system
+
+The student interface uses a token-driven Apple-inspired visual language:
+
+- `src/styles/tokens.css` — colours, radii, spacing, motion, and layout tokens for light and dark themes.
+- `src/styles/base.css` — reset, type scale, glass material, press feedback, entrance animations, and accessibility fallbacks.
+- `src/styles/components.css` — student components, including the segmented control, SOS button, tab bar, chat composer, incident cards, and helplines.
+- `src/styles/legacy.css` and `src/styles/command.css` — the Operational Paper system used by the Command board.
+
+Reduced-motion and reduced-transparency preferences are respected. The SOS gesture remains purely time-based and is never delayed by animation.
+
+---
+
+## Scripts
+
+| Command | Description |
+|---|---|
+| `npm run dev` | Start Vite against the configured Supabase project |
+| `npm run dev:demo` | Start Vite with the in-browser mock backend |
+| `npm run build` | Build the production SPA into `dist/` |
+| `npm run preview` | Preview the production build |
+| `npm run preview:demo` | Preview the demo build |
+| `npm run loadtest -- --url ... --key ... --n 70 --mode mixed` | Run the concurrent SOS acceptance test |
+
+---
+
+## Load testing
+
+The load test fires concurrent `raise_sos` calls with unique sessions, mixed types, selected areas, and unspecified areas. It verifies that every call succeeds, that exactly one open incident exists per pair, and that report counts match arrivals.
 
 ```bash
 node scripts/load-test.mjs \
   --url https://YOUR-PROJECT.supabase.co \
-  --key eyJ...anon-key... \
-  --n 70 --mode mixed
+  --key YOUR_ANON_KEY \
+  --n 70 \
+  --mode mixed
 ```
 
-Fires 70 concurrent `raise_sos` calls — unique sessions, all three types,
-selected areas **and Unspecified**, some silent, some without coordinates —
-and verifies: every call succeeds, exactly one open incident per
-(type, area) pair hit (including the `Unspecified` buckets), and
-`report_count` equals the arrivals per pair. `--mode spread` (6 areas) and
-`--mode same` (all 70 on one pair) are also available. Exit code 0 = PASS.
+Available modes are `mixed`, `spread`, and `same`. Exit code `0` indicates a pass.
 
 ---
 
-## 7. Acceptance checklist (V1 brief §18, re-verified for V1.1)
+## Documentation
 
-- [x] 70 concurrent `raise_sos` → correct grouping, no duplicate incidents —
-      **verified on real Postgres (81/81 test suite, incl. the V1.1 mixed
-      gauntlet)**; re-verify your live project with `scripts/load-test.mjs`
-- [x] Grouping is DB-level (partial unique index), never client-side;
-      **still `(type, area)` — hostel/GPS are never grouping keys**
-- [x] One siren regardless of alert count; stops when last active is acked;
-      Web Audio synthesis — Test button always pressable (V1.1 siren fix)
-- [x] Ack → student screen updates live; Resolve → student returns to dashboard
-- [x] Cancel works pre-ack; blocked post-ack (`already_acknowledged`)
-- [x] anon cannot SELECT `sos_events`/`incident_log` (verified; re-check live
-      via REST: `curl "$URL/rest/v1/sos_events?select=*" -H "apikey: ANON"` → 4xx)
-- [x] Reset Drill truncates all tables; Simulate Burst goes through the real RPC
-- [x] Reconnect/visibility refetch heals stale state; student poll survives resets
-- [x] Works with geolocation denied — SOS still sends; area stays selected or
-      `Unspecified`, never GPS-derived (verified headless + SQL suite)
-- [x] DRILL banner visible everywhere; no telecom anywhere in the codebase
-- [x] V1.1: Unspecified bucket groups race-safely; `location_source` badge;
-      residence hint snapshot; area selector auto-clears (10 min / reload)
-- [ ] *SOS visible on Command < 2 s* — by design (direct realtime insert push);
-      confirm on your deployment during rehearsal with two devices
-- [ ] *Real phone over Netlify HTTPS* — allow + deny location once each
-      (see VERIFICATION.md §B8 checklist)
-
-## 8. Guardrails honored (brief §20)
-
-No student auth/signup · no client-side grouping · no service-role key in the
-frontend · one derived-state siren · never blocks SOS on GPS · no telecom, no
-escalation ladder, no chatbot, no embedded maps in V1 · location stays
-on-device until an SOS fires · `incident_log` is append-only.
-
-## 9. Known notes / deviations
-
-- **Stale-session retrigger:** if a student's incident is resolved while their
-  report row is still active, the next `raise_sos` retires the stale event
-  (logged as `cancelled` with reason `stale_event_closed_on_new_sos`) and
-  opens a fresh incident — this keeps "demo twice back-to-back" working
-  without a reset. Covered by test T5.
-- **Same-session double-fire in the same millisecond** would hit the
-  `one_active_report` unique index and error; the UI makes this impossible
-  (button locks while sending, dashboard swaps to the Active screen).
-- `sos_events.phone` exists in the schema (forward-compat) but V1 never
-  collects it — per the build handoff decision.
-- `location_status` uses `approximate` → `precise` in practice; `pending` is
-  reserved (a fix that hasn't landed yet is simply sent as null →
-  `unavailable`, then refined).
-- Free-tier warm-up matters: wake Supabase ~10 min before the demo.
-
-## 10. After V1 (deferred, per brief)
-
-Groq chatbot via Netlify Function (key stays server-side), helpline card from
-a shared `helplines.json`, embedded live map, escalation ladder, per-post
-Command URLs, telecom integration if ever required.
+- [`VERIFICATION.md`](VERIFICATION.md) — requirement-by-requirement verification notes and checks.
+- [`supabase/schema.sql`](supabase/schema.sql) — database definition and RPCs.
+- [`netlify/functions/chat.mjs`](netlify/functions/chat.mjs) — assistant proxy and safeguards.
 
 ---
 
-*DRILL build. No real emergency services are contacted, anywhere, ever.*
+Built by **HPS Labs**
